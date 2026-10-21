@@ -1,0 +1,1 @@
+Please create a web application based contact form. A contact form that's rendered at contact with fields for name, email and message, validate that the email address is well formed from server side, reject empty name or messages fields with a visible error, On success, show a confirmation message on page, DO not store anything yet
