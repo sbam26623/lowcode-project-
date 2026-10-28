@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Assignments{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Open assignments</h1>{{ m.export_link() }}
+</div>
+<form class="card card-body mb-3" method="get">
+  <div class="row g-2 align-items-end">
+    <div class="col-3"><label class="form-label small" for="ack">Acknowledgement</label>
+      <select class="form-select form-select-sm" id="ack" name="ack"><option value="">Any</option>
+        {% for s in ack_statuses %}<option {{ 'selected' if ack == s }}>{{ s }}</option>{% endfor %}</select></div>
+    <div class="col-auto"><div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="overdue" name="overdue" value="1" {{ 'checked' if overdue_only }}>
+      <label class="form-check-label small" for="overdue">Overdue returns only</label></div></div>
+    <div class="col-auto"><button class="btn btn-sm btn-secondary">Apply</button>
+      <a class="btn btn-sm btn-link" href="{{ url_for('employees.assignments') }}">Reset</a></div>
+  </div>
+</form>
+<div class="card">
+  <table class="table table-sm table-hover mb-0">
+    <thead class="table-light"><tr><th>Asset</th><th>Model</th><th>Employee</th><th>Checked out</th><th>Expected return</th><th>Acknowledgement</th><th>Link sent</th></tr></thead>
+    {% for a in rows %}
+      {% set ackr = a.acknowledgement %}
+      <tr>
+        <td><a class="fw-semibold" href="{{ url_for('assets.detail', asset_id=a.asset_id, tab='assignments') }}">{{ a.asset.asset_tag }}</a></td>
+        <td>{{ a.asset.model.display_name }}</td>
+        <td><a href="{{ url_for('employees.detail', employee_id=a.employee_id) }}">{{ a.employee.full_name }}</a>{% if a.employee.is_leaver %} <span class="badge text-bg-secondary">Leaver</span>{% endif %}</td>
+        <td>{{ a.checked_out_at|d }}</td>
+        <td>{% if a.is_overdue(today) %}<span class="text-danger fw-semibold">{{ (a.expected_return_date or a.employee.leaving_date)|d }} · overdue</span>{% else %}{{ a.expected_return_date|d }}{% endif %}</td>
+        <td>{{ m.status(ackr.effective_status) if ackr else '—' }}</td>
+        <td class="small text-secondary">{{ ackr.sent_at|d if ackr else '' }}</td>
+      </tr>
+    {% else %}<tr><td colspan="7" class="text-center text-secondary py-4">Nothing matches.</td></tr>{% endfor %}
+  </table>
+</div>
+<div class="small text-secondary mt-2">{{ rows|length }} assignment{{ 's' if rows|length != 1 }}</div>
+{% endblock %}

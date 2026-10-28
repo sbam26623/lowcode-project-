@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ employee.full_name }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb small mb-2">
+  <li class="breadcrumb-item"><a href="{{ url_for('employees.index') }}">Employees</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{ employee.full_name }}</li></ol></nav>
+<div class="card mb-3"><div class="card-body d-flex justify-content-between">
+  <div>
+    <h1 class="h3 mb-1">{{ employee.full_name }}
+      {% if employee.is_leaver %}<span class="badge text-bg-secondary fs-6 align-middle">Leaver · {{ employee.leaving_date|d }}</span>{% endif %}</h1>
+    <div class="text-secondary">{{ employee.employee_code }} · {{ employee.email }}</div>
+    <div class="text-secondary">{{ employee.department.name if employee.department else '' }} · {{ employee.location.name if employee.location else '' }}
+      {% if employee.manager %}· Manager: <a href="{{ url_for('employees.detail', employee_id=employee.manager.id) }}">{{ employee.manager.full_name }}</a>{% endif %}</div>
+  </div>
+  {% if current %}<div><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('employees.checklist', employee_id=employee.id) }}" target="_blank"><i class="bi bi-printer me-1"></i>Return checklist</a></div>{% endif %}
+</div></div>
+
+{% if employee.is_leaver and current %}
+  <div class="alert alert-warning">{{ current|length }} asset{{ 's' if current|length != 1 }} still held. Return was due on {{ employee.leaving_date|d }}.</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-7">
+    <div class="card mb-3"><div class="card-header">Current assets ({{ current|length }})</div>
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Asset</th><th>Model</th><th>Since</th><th>Acknowledgement</th></tr></thead>
+        {% for a in current %}
+          <tr><td><a href="{{ url_for('assets.detail', asset_id=a.asset_id) }}">{{ a.asset.asset_tag }}</a></td>
+            <td>{{ a.asset.model.display_name }}</td><td>{{ a.checked_out_at|d }}</td>
+            <td>{{ m.status(a.acknowledgement.effective_status) if a.acknowledgement else '—' }}</td></tr>
+        {% else %}<tr><td colspan="4" class="text-secondary">No assets held.</td></tr>{% endfor %}
+      </table>
+    </div>
+    <div class="card"><div class="card-header">Assignment history</div>
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Asset</th><th>Model</th><th>Out</th><th>In</th><th>Return condition</th></tr></thead>
+        {% for a in assignments if not a.is_open %}
+          <tr><td><a href="{{ url_for('assets.detail', asset_id=a.asset_id) }}">{{ a.asset.asset_tag }}</a></td>
+            <td>{{ a.asset.model.display_name }}</td><td>{{ a.checked_out_at|d }}</td><td>{{ a.checked_in_at|d }}</td><td>{{ a.return_condition or '—' }}</td></tr>
+        {% else %}<tr><td colspan="5" class="text-secondary">No past assignments.</td></tr>{% endfor %}
+      </table>
+    </div>
+  </div>
+  <div class="col-5">
+    <div class="card"><div class="card-header">History</div><div class="card-body">{{ m.timeline(history) }}</div></div>
+  </div>
+</div>
+{% endblock %}

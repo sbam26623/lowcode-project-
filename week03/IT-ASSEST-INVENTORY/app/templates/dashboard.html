@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Dashboard</h1>
+  <a class="btn btn-primary btn-sm" href="{{ url_for('assets.create') }}"><i class="bi bi-plus-lg me-1"></i>New asset</a>
+</div>
+
+<div class="row g-3 mb-3">
+  {% for status, count in status_cards %}
+  <div class="col">
+    <a class="card stat-card h-100 text-decoration-none" href="{{ url_for('assets.index', status=status) }}">
+      <div class="card-body">
+        <div class="label">{{ m.status(status) }}</div>
+        <div class="value text-body mt-1">{{ count }}</div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+  <div class="col">
+    <a class="card stat-card h-100 text-decoration-none" href="{{ url_for('reports.show', slug='financial') }}">
+      <div class="card-body">
+        <div class="label">Total book value</div>
+        <div class="value text-body mt-1 fs-4">{{ total_book|eur }}</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6">
+    <div class="card h-100"><div class="card-header">Active assets by location</div>
+      <div class="card-body"><canvas id="byLocation" height="200" role="img" aria-label="Bar chart of assets by location"></canvas></div></div>
+  </div>
+  <div class="col-6">
+    <div class="card h-100"><div class="card-header">Active assets by category</div>
+      <div class="card-body"><canvas id="byCategory" height="200" role="img" aria-label="Bar chart of assets by category"></canvas></div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">Warranties expiring
+        <a class="small fw-normal" href="{{ url_for('reports.show', slug='warranty') }}">Report</a></div>
+      <div class="card-body">
+        <div class="d-flex gap-2 mb-3">
+          {% for days, n in warranty.items() %}
+            <a href="{{ url_for('assets.index', warranty=days) }}" class="flex-fill border rounded p-2 text-center text-decoration-none">
+              <div class="fs-5 fw-semibold text-body">{{ n }}</div><div class="small text-secondary">≤ {{ days }} days</div></a>
+          {% endfor %}
+        </div>
+        <table class="table table-sm mb-0">
+          {% for a in expiring_soon %}
+            <tr><td class="text-nowrap"><a href="{{ url_for('assets.detail', asset_id=a.id) }}">{{ a.asset_tag }}</a></td>
+              <td class="small">{{ a.model.display_name }}</td><td class="num small">{{ a.warranty_end_date|d }}</td></tr>
+          {% else %}<tr><td class="text-secondary">Nothing in the next 30 days.</td></tr>{% endfor %}
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">Acknowledgements needing attention <span class="badge text-bg-warning">{{ pending_count }}</span></div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          {% for a in pending_acks %}
+            <tr><td class="text-nowrap"><a href="{{ url_for('assets.detail', asset_id=a.asset_id, tab='assignments') }}">{{ a.asset.asset_tag }}</a></td>
+              <td class="small">{{ a.employee.full_name }}</td><td>{{ m.status(a.acknowledgement.effective_status) }}</td></tr>
+          {% else %}<tr><td class="text-secondary">All acknowledged.</td></tr>{% endfor %}
+        </table>
+        <a class="small" href="{{ url_for('employees.assignments', ack='Pending') }}">All pending</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">Overdue returns <span class="badge text-bg-danger">{{ overdue_count }}</span></div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          {% for a in overdue %}
+            <tr><td class="text-nowrap"><a href="{{ url_for('assets.detail', asset_id=a.asset_id, tab='assignments') }}">{{ a.asset.asset_tag }}</a></td>
+              <td class="small">{{ a.employee.full_name }}{% if a.employee.is_leaver %} <span class="badge text-bg-secondary">Leaver</span>{% endif %}</td>
+              <td class="num small">{{ (a.expected_return_date or a.employee.leaving_date)|d }}</td></tr>
+          {% else %}<tr><td class="text-secondary">Nothing overdue.</td></tr>{% endfor %}
+        </table>
+        <a class="small" href="{{ url_for('employees.assignments', overdue=1) }}">All overdue</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="card h-100"><div class="card-header">Low-stock models</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Model</th><th class="num">In stock</th><th class="num">Threshold</th></tr></thead>
+          {% for model, n in low_stock %}
+            <tr><td><a href="{{ url_for('assets.index', model=model.id, status='In Stock') }}">{{ model.display_name }}</a></td>
+              <td class="num text-danger fw-semibold">{{ n }}</td><td class="num">{{ model.low_stock_threshold }}</td></tr>
+          {% else %}<tr><td colspan="3" class="text-secondary">Stock levels are fine.</td></tr>{% endfor %}
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-8">
+    <div class="card h-100"><div class="card-header d-flex justify-content-between">Recent activity
+      <a class="small fw-normal" href="{{ url_for('reports.audit') }}">Audit log</a></div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          {% for e in recent %}
+            <tr><td class="small text-secondary text-nowrap">{{ e.occurred_at|dt }}</td>
+              <td><a href="{{ url_for('assets.detail', asset_id=e.asset_id, tab='history') }}">{{ e.entity_label }}</a></td>
+              <td><span class="badge text-bg-light border">{{ e.action|replace('_', ' ') }}</span></td>
+              <td class="small">{{ e.note or '' }}</td>
+              <td class="small text-secondary">{{ m.actor(e) }}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const opts = { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } };
+  new Chart(document.getElementById('byLocation'), { type: 'bar', options: opts, data: {
+    labels: {{ by_location|map(attribute=0)|list|tojson }},
+    datasets: [{ data: {{ by_location|map(attribute=1)|list|tojson }}, backgroundColor: '#0d6efd', borderRadius: 4 }] } });
+  new Chart(document.getElementById('byCategory'), { type: 'bar', options: opts, data: {
+    labels: {{ by_category|map(attribute=0)|list|tojson }},
+    datasets: [{ data: {{ by_category|map(attribute=1)|list|tojson }}, backgroundColor: '#6f42c1', borderRadius: 4 }] } });
+</script>
+{% endblock %}

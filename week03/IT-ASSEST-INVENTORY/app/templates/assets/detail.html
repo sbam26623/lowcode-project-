@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ asset.asset_tag }}{% endblock %}
+{% block content %}
+{% set S = asset.status %}
+{% set holder = asset.open_assignment %}
+{% set readonly = S == 'Disposed' %}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb small mb-2">
+  <li class="breadcrumb-item"><a href="{{ url_for('assets.index') }}">Assets</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{ asset.asset_tag }}</li></ol></nav>
+
+<div class="card mb-3">
+  <div class="card-body d-flex justify-content-between align-items-start">
+    <div>
+      <div class="d-flex align-items-center gap-2">
+        <h1 class="h3 mb-0">{{ asset.asset_tag }}</h1>{{ m.status(S) }}
+        {% if holder and holder.acknowledgement %}<span class="small text-secondary">Acknowledgement:</span> {{ m.status(holder.acknowledgement.effective_status) }}{% endif %}
+      </div>
+      <div class="text-secondary mt-1">{{ asset.model.display_name }} · {{ asset.model.category.name }} · S/N <span class="font-monospace">{{ asset.serial_number or '—' }}</span></div>
+      <div class="mt-1">
+        {% if holder %}Assigned to <a href="{{ url_for('employees.detail', employee_id=holder.employee_id) }}">{{ holder.employee.full_name }}</a>
+          since {{ holder.checked_out_at|d }}{% if holder.is_overdue(today) %} <span class="badge text-bg-danger">Return overdue</span>{% endif %}
+        {% else %}<span class="text-secondary">Not assigned</span>{% endif %}
+        · {{ asset.location.name if asset.location else 'No location' }}
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 justify-content-end" style="max-width: 520px">
+      {% if S == 'In Stock' %}
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#checkoutModal"><i class="bi bi-box-arrow-up-right me-1"></i>Check out</button>
+      {% endif %}
+      {% if S == 'Assigned' %}
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#checkinModal"><i class="bi bi-box-arrow-in-down-left me-1"></i>Check in</button>
+      {% endif %}
+      {% if S in ('In Stock', 'Assigned') %}
+        <button class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#repairModal"><i class="bi bi-tools me-1"></i>Open repair</button>
+      {% endif %}
+      {% if open_repair %}
+        <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#closeRepairModal"><i class="bi bi-check2-circle me-1"></i>Close repair</button>
+      {% endif %}
+      {% if S in ('In Stock', 'In Repair', 'Assigned') %}
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#retireModal"><i class="bi bi-archive me-1"></i>Retire</button>
+      {% endif %}
+      {% if S == 'Retired' %}
+        <button class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#disposeModal"><i class="bi bi-recycle me-1"></i>Dispose</button>
+        {% if current_user.is_admin %}
+        <form method="post" action="{{ url_for('assets.reinstate', asset_id=asset.id) }}" onsubmit="return confirm('Reinstate {{ asset.asset_tag }} to stock?')">{{ csrf() }}
+          <button class="btn btn-outline-success btn-sm"><i class="bi bi-arrow-counterclockwise me-1"></i>Reinstate</button></form>
+        {% endif %}
+      {% endif %}
+      {% if readonly %}<span class="text-secondary small"><i class="bi bi-lock me-1"></i>Disposed assets are read-only.</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<ul class="nav nav-tabs" role="tablist">
+  {% for key, label in [('details', 'Details'), ('assignments', 'Assignments (' ~ asset.assignments|length ~ ')'), ('repairs', 'Repairs (' ~ asset.repairs|length ~ ')'), ('financials', 'Financials'), ('history', 'History (' ~ history|length ~ ')')] %}
+    <li class="nav-item" role="presentation">
+      <button class="nav-link {{ 'active' if tab == key }}" data-bs-toggle="tab" data-bs-target="#tab-{{ key }}" type="button" role="tab">{{ label }}</button></li>
+  {% endfor %}
+</ul>
+<div class="tab-content card card-body border-top-0 rounded-top-0">
+  <div class="tab-pane fade {{ 'show active' if tab == 'details' }}" id="tab-details" role="tabpanel">
+    <div class="row">
+      {% for label, value in [
+          ('Asset tag', asset.asset_tag), ('Model', asset.model.display_name), ('Model number', asset.model.model_number),
+          ('Category', asset.model.category.name), ('Serial number', asset.serial_number), ('Status', S),
+          ('Location', asset.location.name if asset.location else None),
+          ('Address', asset.location.address ~ ', ' ~ asset.location.city if asset.location else None),
+          ('Purchase date', asset.purchase_date|d), ('Purchase cost', asset.purchase_cost|eur),
+          ('Vendor', asset.vendor.name if asset.vendor else None), ('Invoice number', asset.invoice_number),
+          ('Warranty end', asset.warranty_end_date|d), ('Useful life', asset.life_months ~ ' months'),
+          ('Residual value', asset.residual ~ ' %'), ('Notes', asset.notes)] %}
+        <div class="col-4 mb-3"><div class="small text-secondary">{{ label }}</div><div>{{ value or '—' }}</div></div>
+      {% endfor %}
+      {% for key, value in (asset.custom_fields or {}).items() %}
+        <div class="col-4 mb-3"><div class="small text-secondary">{{ key }}</div><div>{{ value }}</div></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="tab-pane fade {{ 'show active' if tab == 'assignments' }}" id="tab-assignments" role="tabpanel">
+    <table class="table table-sm">
+      <thead><tr><th>Employee</th><th>Checked out</th><th>Expected return</th><th>Condition out</th><th>Checked in</th><th>Condition in</th><th>Acknowledgement</th><th></th></tr></thead>
+      {% for a in asset.assignments %}
+        {% set ack = a.acknowledgement %}
+        <tr>
+          <td><a href="{{ url_for('employees.detail', employee_id=a.employee_id) }}">{{ a.employee.full_name }}</a></td>
+          <td>{{ a.checked_out_at|d }}</td>
+          <td class="{{ 'text-danger fw-semibold' if a.is_overdue(today) }}">{{ a.expected_return_date|d }}</td>
+          <td>{{ a.checkout_condition or '—' }}</td>
+          <td>{{ a.checked_in_at|d if a.checked_in_at else 'Open' }}</td>
+          <td>{{ a.return_condition or '—' }}</td>
+          <td>{% if ack %}{{ m.status(ack.effective_status) }}
+              {% if ack.responded_at %}<div class="small text-secondary">“{{ ack.typed_name or '' }}” {{ ack.responded_at|dt }}, IP {{ ack.ip_address }}</div>{% endif %}
+              {% if ack.comment %}<div class="small text-danger">{{ ack.comment }}</div>{% endif %}{% endif %}</td>
+          <td>{% if a.is_open and ack and ack.status != 'Accepted' %}
+            <form method="post" action="{{ url_for('assets.resend_ack', asset_id=asset.id, assignment_id=a.id) }}">{{ csrf() }}
+              <input type="hidden" name="tab" value="assignments"><button class="btn btn-link btn-sm p-0">Resend link</button></form>{% endif %}</td>
+        </tr>
+      {% else %}<tr><td colspan="8" class="text-secondary">Never assigned.</td></tr>{% endfor %}
+    </table>
+  </div>
+
+  <div class="tab-pane fade {{ 'show active' if tab == 'repairs' }}" id="tab-repairs" role="tabpanel">
+    <table class="table table-sm">
+      <thead><tr><th>Reported</th><th>Issue</th><th>Type</th><th>Vendor / RMA</th><th>Completed</th><th>Outcome</th><th>Resolution</th><th class="num">Cost</th></tr></thead>
+      {% for r in asset.repairs %}
+        <tr><td>{{ r.reported_at|d }}</td><td>{{ r.issue }}</td><td>{{ r.repair_type }}</td>
+          <td>{{ r.vendor.name if r.vendor else '—' }}{% if r.rma_number %}<div class="small font-monospace">{{ r.rma_number }}</div>{% endif %}</td>
+          <td>{{ r.completed_at|d if r.completed_at else 'Open' }}</td><td>{{ r.outcome or '—' }}</td>
+          <td class="small">{{ r.resolution or '' }}</td><td class="num">{{ r.cost|eur if r.cost is not none else '—' }}</td></tr>
+      {% else %}<tr><td colspan="8" class="text-secondary">No repairs logged.</td></tr>{% endfor %}
+      {% if asset.repairs %}<tfoot><tr><th colspan="7">Total repair cost</th><th class="num">{{ repair_cost|eur }}</th></tr></tfoot>{% endif %}
+    </table>
+  </div>
+
+  <div class="tab-pane fade {{ 'show active' if tab == 'financials' }}" id="tab-financials" role="tabpanel">
+    {% if dep %}
+    <form class="row g-2 align-items-end mb-3" method="get">
+      <input type="hidden" name="tab" value="financials">
+      <div class="col-auto"><label class="form-label small" for="as_at">Book value as at</label>
+        <input class="form-control form-control-sm" type="date" id="as_at" name="as_at" value="{{ as_at.isoformat() }}"></div>
+      <div class="col-auto"><button class="btn btn-sm btn-secondary">Recalculate</button></div>
+    </form>
+    <div class="row g-3">
+      {% for label, value in [('Purchase cost', dep.cost|eur), ('Residual value (' ~ asset.residual ~ ' %)', dep.residual_value|eur),
+                              ('Monthly depreciation', dep.monthly|eur), ('Months depreciated', dep.months_elapsed ~ ' of ' ~ dep.life_months),
+                              ('Accumulated depreciation', dep.accumulated|eur), ('Book value', dep.book_value|eur)] %}
+        <div class="col-4"><div class="border rounded p-3"><div class="small text-secondary">{{ label }}</div><div class="fs-5 fw-semibold">{{ value }}</div></div></div>
+      {% endfor %}
+      <div class="col-4"><div class="border rounded p-3"><div class="small text-secondary">Total cost of ownership</div><div class="fs-5 fw-semibold">{{ (dep.cost + repair_cost)|eur }}</div><div class="small text-secondary">purchase + repairs</div></div></div>
+      {% if gain_loss is not none %}
+        <div class="col-4"><div class="border rounded p-3"><div class="small text-secondary">Disposal gain / loss</div>
+          <div class="fs-5 fw-semibold {{ 'text-success' if gain_loss >= 0 else 'text-danger' }}">{{ gain_loss|eur }}</div></div></div>
+      {% endif %}
+    </div>
+    <div class="progress mt-3" role="progressbar" aria-label="Depreciation progress" aria-valuenow="{{ dep.months_elapsed }}" aria-valuemin="0" aria-valuemax="{{ dep.life_months }}">
+      <div class="progress-bar" style="width: {{ (100 * dep.months_elapsed / dep.life_months)|round }}%">{{ (100 * dep.months_elapsed / dep.life_months)|round|int }}% depreciated</div>
+    </div>
+    <p class="small text-secondary mt-2 mb-0">Straight line: ({{ dep.cost|eur }} − {{ dep.residual_value|eur }}) ÷ {{ dep.life_months }} months = {{ dep.monthly|eur }} per month. Book value never drops below the residual value{% if asset.disposal and asset.disposal.disposed_at %}; depreciation stopped at disposal on {{ asset.disposal.disposed_at|d }}{% endif %}.</p>
+    {% else %}<p class="text-secondary">No purchase cost or date recorded.</p>{% endif %}
+    {% if asset.disposal %}
+      <hr><h2 class="h6">Retirement and disposal</h2>
+      <div class="row small">
+        {% set d = asset.disposal %}
+        {% for label, value in [('Retired', d.retired_at|d), ('Reason', d.retire_reason), ('Disposed', d.disposed_at|d if d.disposed_at else None),
+                                ('Method', d.method), ('Recipient', d.recipient), ('Data wipe', d.data_wipe_method),
+                                ('Wipe confirmed', 'Yes' if d.data_wipe_confirmed else 'No'), ('Sale value', d.sale_value|eur if d.sale_value is not none else None)] %}
+          <div class="col-3 mb-2"><div class="text-secondary">{{ label }}</div><div>{{ value or '—' }}</div></div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="tab-pane fade {{ 'show active' if tab == 'history' }}" id="tab-history" role="tabpanel">
+    {{ m.timeline(history) }}
+  </div>
+</div>
+
+{# ---- Lifecycle dialogs ---- #}
+{% macro modal(id, title, action, submit, tab='details', btn='primary') %}
+<div class="modal fade" id="{{ id }}" tabindex="-1" aria-labelledby="{{ id }}Label" aria-hidden="true">
+  <div class="modal-dialog"><form class="modal-content" method="post" action="{{ action }}">
+    {{ csrf() }}<input type="hidden" name="tab" value="{{ tab }}">
+    <div class="modal-header"><h2 class="modal-title fs-5" id="{{ id }}Label">{{ title }}</h2>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">{{ caller() }}</div>
+    <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">Cancel</button>
+      <button class="btn btn-{{ btn }}">{{ submit }}</button></div>
+  </form></div>
+</div>
+{% endmacro %}
+
+{% call modal('checkoutModal', 'Check out ' ~ asset.asset_tag, url_for('assets.checkout', asset_id=asset.id), 'Check out & email employee', 'assignments') %}
+  <div class="mb-3"><label class="form-label" for="employee_id">Employee</label>
+    <input class="form-control mb-1" id="employeeSearch" aria-label="Search employees" placeholder="Type to search…" autocomplete="off">
+    <select class="form-select" id="employee_id" name="employee_id" required size="6">
+      {% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }} · {{ e.employee_code }} · {{ e.department.name if e.department else '' }} · {{ e.location.name if e.location else '' }}</option>{% endfor %}
+    </select></div>
+  <div class="row g-2">
+    <div class="col"><label class="form-label" for="expected_return">Expected return <span class="text-secondary small">(loans only)</span></label>
+      <input class="form-control" type="date" id="expected_return" name="expected_return"></div>
+    <div class="col"><label class="form-label" for="co_condition">Condition</label>
+      <select class="form-select" id="co_condition" name="condition">{% for c in conditions if c != 'Damaged' %}<option {{ 'selected' if c == 'Good' }}>{{ c }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="mt-3"><label class="form-label" for="co_notes">Notes</label><textarea class="form-control" id="co_notes" name="notes" rows="2"></textarea></div>
+  <p class="small text-secondary mt-2 mb-0">The employee receives a single-use acknowledgement link valid for 7 days.</p>
+{% endcall %}
+
+{% call modal('checkinModal', 'Check in ' ~ asset.asset_tag, url_for('assets.checkin', asset_id=asset.id), 'Check in', 'assignments') %}
+  <p>Returning from <strong>{{ holder.employee.full_name if holder else '' }}</strong>.</p>
+  <div class="mb-3"><label class="form-label" for="ci_condition">Condition on return</label>
+    <select class="form-select" id="ci_condition" name="condition">{% for c in conditions %}<option {{ 'selected' if c == 'Good' }}>{{ c }}</option>{% endfor %}</select>
+    <div class="form-text">“Damaged” sends the asset to In Repair and opens a repair record.</div></div>
+  <label class="form-label" for="ci_notes">Notes</label><textarea class="form-control" id="ci_notes" name="notes" rows="2"></textarea>
+{% endcall %}
+
+{% call modal('repairModal', 'Open repair for ' ~ asset.asset_tag, url_for('assets.repair_open', asset_id=asset.id), 'Open repair', 'repairs', 'warning') %}
+  <div class="mb-3"><label class="form-label" for="issue">Issue</label><textarea class="form-control" id="issue" name="issue" rows="2" required></textarea></div>
+  <div class="row g-2">
+    <div class="col"><label class="form-label" for="repair_type">Type</label>
+      <select class="form-select" id="repair_type" name="repair_type">{% for t in repair_types %}<option>{{ t }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label" for="r_vendor">Vendor</label>
+      <select class="form-select" id="r_vendor" name="vendor_id"><option value="">—</option>{% for v in vendors %}<option value="{{ v.id }}">{{ v.name }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="mt-3"><label class="form-label" for="rma">Ticket / RMA number</label><input class="form-control" id="rma" name="rma_number"></div>
+  {% if holder %}<p class="small text-secondary mt-2 mb-0">The assignment to {{ holder.employee.full_name }} stays open; the asset returns to them when the repair closes.</p>{% endif %}
+{% endcall %}
+
+{% if open_repair %}
+{% call modal('closeRepairModal', 'Close repair', url_for('assets.repair_close', asset_id=asset.id, repair_id=open_repair.id), 'Close repair', 'repairs', 'warning') %}
+  <p class="small">{{ open_repair.issue }}</p>
+  <div class="row g-2">
+    <div class="col"><label class="form-label" for="outcome">Outcome</label>
+      <select class="form-select" id="outcome" name="outcome">{% for o in repair_outcomes %}<option>{{ o }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label" for="cost">Cost (€)</label><input class="form-control" id="cost" name="cost" inputmode="decimal" placeholder="0.00"></div>
+  </div>
+  <div class="mt-3"><label class="form-label" for="resolution">Resolution</label><textarea class="form-control" id="resolution" name="resolution" rows="2"></textarea></div>
+{% endcall %}
+{% endif %}
+
+{% call modal('retireModal', 'Retire ' ~ asset.asset_tag, url_for('assets.retire', asset_id=asset.id), 'Retire asset', 'financials', 'secondary') %}
+  {% if holder %}<div class="alert alert-warning small">This asset is assigned to {{ holder.employee.full_name }}. It must be checked in before it can be retired; submitting will be rejected.</div>{% endif %}
+  <div class="row g-2">
+    <div class="col"><label class="form-label" for="reason">Reason</label>
+      <select class="form-select" id="reason" name="reason" required>{% for r in retire_reasons %}<option>{{ r }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label" for="retired_on">Date</label><input class="form-control" type="date" id="retired_on" name="retired_on" value="{{ today.isoformat() }}"></div>
+  </div>
+  <div class="mt-3"><label class="form-label" for="r_notes">Notes</label><textarea class="form-control" id="r_notes" name="notes" rows="2"></textarea></div>
+{% endcall %}
+
+{% call modal('disposeModal', 'Dispose of ' ~ asset.asset_tag, url_for('assets.dispose', asset_id=asset.id), 'Dispose', 'financials', 'dark') %}
+  <div class="row g-2">
+    <div class="col"><label class="form-label" for="method">Method</label>
+      <select class="form-select" id="method" name="method">{% for d in disposal_methods %}<option>{{ d }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label" for="disposed_on">Date</label><input class="form-control" type="date" id="disposed_on" name="disposed_on" value="{{ today.isoformat() }}"></div>
+  </div>
+  <div class="row g-2 mt-1">
+    <div class="col"><label class="form-label" for="recipient">Recipient / vendor</label><input class="form-control" id="recipient" name="recipient"></div>
+    <div class="col"><label class="form-label" for="sale_value">Sale value (€)</label><input class="form-control" id="sale_value" name="sale_value" inputmode="decimal"></div>
+  </div>
+  <div class="mt-3"><label class="form-label" for="wipe_method">Data-wipe method</label>
+    <select class="form-select" id="wipe_method" name="wipe_method">{% for w in wipe_methods %}<option>{{ w }}</option>{% endfor %}</select></div>
+  <div class="form-check mt-3"><input class="form-check-input" type="checkbox" id="wipe_confirmed" name="wipe_confirmed">
+    <label class="form-check-label" for="wipe_confirmed">I confirm the data wipe is complete</label></div>
+  <p class="small text-secondary mt-2 mb-0">After disposal the record is read-only.</p>
+{% endcall %}
+{% endblock %}
+{% block scripts %}
+<script>
+  // Filter the employee picker as you type.
+  const search = document.getElementById('employeeSearch');
+  if (search) search.addEventListener('input', () => {
+    const q = search.value.toLowerCase();
+    for (const opt of document.getElementById('employee_id').options) opt.hidden = !opt.text.toLowerCase().includes(q);
+  });
+</script>
+{% endblock %}

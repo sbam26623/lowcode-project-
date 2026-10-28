@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}New asset{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb small mb-2">
+  <li class="breadcrumb-item"><a href="{{ url_for('assets.index') }}">Assets</a></li>
+  <li class="breadcrumb-item active" aria-current="page">New</li></ol></nav>
+<h1 class="h3 mb-3">New asset</h1>
+{% macro field(name, label, type='text', help=None, attrs='') %}
+  <label class="form-label" for="{{ name }}">{{ label }}</label>
+  <input class="form-control {{ 'is-invalid' if errors.get(name) }}" type="{{ type }}" id="{{ name }}" name="{{ name }}" value="{{ form.get(name, '') }}" {{ attrs|safe }}>
+  {% if errors.get(name) %}<div class="invalid-feedback">{{ errors[name] }}</div>{% elif help %}<div class="form-text">{{ help }}</div>{% endif %}
+{% endmacro %}
+<form method="post" class="card card-body" style="max-width: 900px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-4">{{ field('asset_tag', 'Asset tag', help='Leave blank to auto-generate ' ~ next_tag, attrs='placeholder="' ~ next_tag ~ '"') }}</div>
+    <div class="col-8">
+      <label class="form-label" for="model_id">Model</label>
+      <select class="form-select {{ 'is-invalid' if errors.get('model_id') }}" id="model_id" name="model_id" required>
+        <option value="">Choose…</option>
+        {% for mo in models %}<option value="{{ mo.id }}" {{ 'selected' if form.get('model_id') == mo.id|string }}>{{ mo.display_name }} ({{ mo.category.name }})</option>{% endfor %}
+      </select>
+      {% if errors.get('model_id') %}<div class="invalid-feedback">{{ errors.model_id }}</div>{% endif %}
+    </div>
+    <div class="col-4">{{ field('serial_number', 'Serial number', help='Unique per manufacturer') }}</div>
+    <div class="col-4">
+      <label class="form-label" for="location_id">Location</label>
+      <select class="form-select" id="location_id" name="location_id">
+        {% for l in locations %}<option value="{{ l.id }}" {{ 'selected' if form.get('location_id') == l.id|string }}>{{ l.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-4">
+      <label class="form-label" for="vendor_id">Vendor</label>
+      <select class="form-select" id="vendor_id" name="vendor_id"><option value="">—</option>
+        {% for v in vendors %}<option value="{{ v.id }}" {{ 'selected' if form.get('vendor_id') == v.id|string }}>{{ v.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-3">{{ field('purchase_date', 'Purchase date', 'date') }}</div>
+    <div class="col-3">{{ field('purchase_cost', 'Purchase cost (€)', attrs='inputmode="decimal" placeholder="1299.00"') }}</div>
+    <div class="col-3">{{ field('invoice_number', 'Invoice / PO number') }}</div>
+    <div class="col-3">{{ field('warranty_end_date', 'Warranty end', 'date') }}</div>
+    <div class="col-12">
+      <label class="form-label" for="notes">Notes</label>
+      <textarea class="form-control" id="notes" name="notes" rows="2">{{ form.get('notes', '') }}</textarea>
+    </div>
+  </div>
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary">Create asset</button>
+    <a class="btn btn-link" href="{{ url_for('assets.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

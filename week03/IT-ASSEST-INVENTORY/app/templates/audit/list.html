@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div><h1 class="h3 mb-0">Audit log</h1><div class="small text-secondary">Append-only. Times shown in Europe/Berlin; stored in UTC.</div></div>
+  {{ m.export_link() }}
+</div>
+{% set a = request.args %}
+<form class="card card-body mb-3 filter-bar" method="get">
+  <div class="row g-2 align-items-end">
+    <div class="col"><label class="form-label small" for="from">From</label><input class="form-control form-control-sm" type="date" id="from" name="from" value="{{ a.get('from', '') }}"></div>
+    <div class="col"><label class="form-label small" for="to">To</label><input class="form-control form-control-sm" type="date" id="to" name="to" value="{{ a.to }}"></div>
+    <div class="col"><label class="form-label small" for="user">User</label>
+      <select class="form-select form-select-sm" id="user" name="user"><option value="">Anyone</option>
+        {% for u in users %}<option value="{{ u.id }}" {{ 'selected' if a.user == u.id|string }}>{{ u.full_name }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label small" for="entity">Entity</label>
+      <select class="form-select form-select-sm" id="entity" name="entity"><option value="">All</option>
+        {% for e in entities %}<option {{ 'selected' if a.entity == e }}>{{ e }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label small" for="action">Action</label>
+      <select class="form-select form-select-sm" id="action" name="action"><option value="">All</option>
+        {% for x in actions %}<option {{ 'selected' if a.action == x }}>{{ x }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label small" for="q">Record</label><input class="form-control form-control-sm" id="q" name="q" value="{{ a.q }}" placeholder="e.g. IT-000042"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-secondary">Apply</button>
+      <a class="btn btn-sm btn-link" href="{{ url_for('reports.audit') }}">Reset</a></div>
+  </div>
+</form>
+<div class="card">
+  <table class="table table-sm mb-0">
+    <thead class="table-light"><tr><th>When</th><th>User</th><th>IP</th><th>Entity</th><th>Record</th><th>Action</th><th>Changes</th></tr></thead>
+    {% for e in page.items %}
+      <tr>
+        <td class="small text-nowrap">{{ e.occurred_at|dt }}</td>
+        <td class="small">{{ m.actor(e) }}</td>
+        <td class="small font-monospace">{{ e.ip_address or '' }}</td>
+        <td class="small">{{ e.entity_type }}</td>
+        <td class="small">{% if e.asset_id %}<a href="{{ url_for('assets.detail', asset_id=e.asset_id, tab='history') }}">{{ e.entity_label }}</a>
+          {% elif e.employee_id %}<a href="{{ url_for('employees.detail', employee_id=e.employee_id) }}">{{ e.entity_label }}</a>
+          {% else %}{{ e.entity_label or '' }}{% endif %}</td>
+        <td><span class="badge text-bg-light border">{{ e.action|replace('_', ' ') }}</span>{% if e.note %}<div class="small">{{ e.note }}</div>{% endif %}</td>
+        <td>{% if e.action != 'create' %}{{ m.changes(e) }}{% elif e.changes %}<span class="small text-secondary">{{ e.changes|length }} fields set</span>{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="7" class="text-center text-secondary py-4">No entries.</td></tr>{% endfor %}
+  </table>
+</div>
+{{ m.pagination(page) }}
+{% endblock %}

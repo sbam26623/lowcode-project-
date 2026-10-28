@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block public %}
+<div class="container" style="max-width: 420px; margin-top: 12vh;">
+  <div class="text-center mb-4">
+    <i class="bi bi-pc-display-horizontal fs-1 text-primary" aria-hidden="true"></i>
+    <h1 class="h4 mt-2">IT Asset Inventory</h1>
+    <div class="text-secondary small">{{ org_name }}</div>
+  </div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="alert alert-{{ category }}" role="alert">{{ message }}</div>{% endfor %}
+  {% endwith %}
+  <form method="post" class="card card-body shadow-sm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-3">
+      <label class="form-label" for="email">Email</label>
+      <input class="form-control" id="email" name="email" type="email" value="{{ email }}" autocomplete="username" required autofocus>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="password">Password</label>
+      <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <button class="btn btn-primary w-100">Sign in</button>
+    <p class="small text-secondary mt-3 mb-0">Demo build: TOTP MFA and password reset (FR-AUTH-03/05) are not wired up yet. Demo accounts are listed in <code>app/seed.py</code>.</p>
+  </form>
+</div>
+{% endblock %}

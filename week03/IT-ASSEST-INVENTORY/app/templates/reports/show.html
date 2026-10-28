@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ report.code }}{% endblock %}
+{% macro cell(value, idx) -%}
+  {%- if idx in report.money_cols -%}{{ value|eur if value is not none else '—' }}
+  {%- elif value is none or value == '' -%}<span class="text-secondary">—</span>
+  {%- elif value is date -%}{{ value|d }}
+  {%- else -%}{{ value }}{%- endif -%}
+{%- endmacro %}
+{% block content %}
+<nav aria-label="breadcrumb" class="no-print"><ol class="breadcrumb small mb-2">
+  <li class="breadcrumb-item"><a href="{{ url_for('reports.index') }}">Reports</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{ report.code }}</li></ol></nav>
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div><h1 class="h3 mb-1">{{ report.title }}</h1><div class="text-secondary">{{ report.description }}</div></div>
+  <div class="d-flex gap-2 no-print">{{ m.export_link() }}
+    <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print / PDF</button></div>
+</div>
+
+{% set p = report.params %}
+{% if p %}
+<form class="card card-body mb-3 no-print" method="get">
+  <div class="row g-2 align-items-end">
+    {% if 'group' in p %}
+      <div class="col-auto"><label class="form-label small" for="group">Group by</label>
+        <select class="form-select form-select-sm" id="group" name="group">
+          {% for g in (['location', 'category', 'model', 'status'] if slug == 'inventory' else ['category', 'location']) %}
+            <option value="{{ g }}" {{ 'selected' if p.group == g }}>{{ g|title }}</option>{% endfor %}</select></div>
+    {% endif %}
+    {% if 'as_at' in p %}
+      <div class="col-auto"><label class="form-label small" for="as_at">As at</label>
+        <input class="form-control form-control-sm" type="date" id="as_at" name="as_at" value="{{ p.as_at.isoformat() }}"></div>
+    {% endif %}
+    {% if 'days' in p %}
+      <div class="col-auto"><label class="form-label small" for="days">Expiring within (days)</label>
+        <input class="form-control form-control-sm" type="number" min="1" max="730" id="days" name="days" value="{{ p.days }}"></div>
+      <div class="col-auto"><label class="form-label small" for="bucket">Show</label>
+        <select class="form-select form-select-sm" id="bucket" name="bucket">
+          {% for v, label in [('', 'All'), ('Expired', 'Expired'), ('Expiring', 'Expiring'), ('No warranty', 'No warranty')] %}
+            <option value="{{ v }}" {{ 'selected' if p.bucket == v }}>{{ label }}</option>{% endfor %}</select></div>
+    {% endif %}
+    {% if 'leavers' in p %}
+      <div class="col-auto"><div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="leavers" name="leavers" value="1" {{ 'checked' if p.leavers }}>
+        <label class="form-check-label small" for="leavers">Leavers with outstanding assets only</label></div></div>
+    {% endif %}
+    <div class="col-auto"><button class="btn btn-sm btn-secondary">Run</button></div>
+  </div>
+</form>
+{% endif %}
+
+<div class="card">
+  <table class="table table-sm table-hover mb-0">
+    <thead class="table-light"><tr>{% for c in report.columns %}<th class="{{ 'num' if loop.index0 in report.money_cols or (loop.index0 > 0 and report.rows and report.rows[0][loop.index0] is number) }}">{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for row in report.rows %}
+        <tr>{% for value in row[:report.columns|length] %}
+          {% set i = loop.index0 %}
+          <td class="{{ 'num' if i in report.money_cols or (i > 0 and value is number) }}">
+            {%- if i == 0 and report.link_col is not none -%}<a href="{{ url_for('assets.detail', asset_id=row[report.link_col]) }}">{{ value }}</a>
+            {%- else -%}{{ cell(value, i) }}{%- endif -%}</td>
+        {% endfor %}</tr>
+      {% else %}<tr><td colspan="{{ report.columns|length }}" class="text-center text-secondary py-4">No rows.</td></tr>{% endfor %}
+    </tbody>
+    {% if report.totals and report.rows %}
+      <tfoot class="table-light fw-semibold"><tr>{% for value in report.totals %}
+        <td class="{{ 'num' if loop.index0 in report.money_cols or (loop.index0 > 0 and value is number) }}">{{ cell(value, loop.index0) }}</td>{% endfor %}</tr></tfoot>
+    {% endif %}
+  </table>
+</div>
+<div class="small text-secondary mt-2">{{ report.rows|length }} row{{ 's' if report.rows|length != 1 }} · generated {{ today|d }}</div>
+{% endblock %}

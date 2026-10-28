@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Assets{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Assets</h1>
+  <div class="d-flex gap-2">{{ m.export_link() }}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('assets.create') }}"><i class="bi bi-plus-lg me-1"></i>New asset</a></div>
+</div>
+{% set a = request.args %}
+<form class="card card-body mb-3 filter-bar" method="get">
+  <div class="row g-2 align-items-end">
+    <div class="col-3"><label class="form-label small" for="q">Search</label>
+      <input class="form-control form-control-sm" id="q" name="q" value="{{ a.q }}" placeholder="Tag, serial, model or assignee"></div>
+    <div class="col"><label class="form-label small" for="status">Status</label>
+      <select class="form-select form-select-sm" id="status" name="status">
+        <option value="">All except Disposed</option>
+        {% for s in statuses %}<option {{ 'selected' if a.status == s }}>{{ s }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label small" for="category">Category</label>
+      <select class="form-select form-select-sm" id="category" name="category"><option value="">All</option>
+        {% for c in categories %}<option value="{{ c.id }}" {{ 'selected' if a.category == c.id|string }}>{{ c.name }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label small" for="location">Location</label>
+      <select class="form-select form-select-sm" id="location" name="location"><option value="">All</option>
+        {% for l in locations %}<option value="{{ l.id }}" {{ 'selected' if a.location == l.id|string }}>{{ l.name }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label small" for="model">Model</label>
+      <select class="form-select form-select-sm" id="model" name="model"><option value="">All</option>
+        {% for mo in models %}<option value="{{ mo.id }}" {{ 'selected' if a.model == mo.id|string }}>{{ mo.display_name }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label small" for="warranty">Warranty</label>
+      <select class="form-select form-select-sm" id="warranty" name="warranty"><option value="">Any</option>
+        {% for v, label in [('30', 'Expires ≤ 30 days'), ('60', 'Expires ≤ 60 days'), ('90', 'Expires ≤ 90 days'), ('expired', 'Expired'), ('none', 'No warranty')] %}
+          <option value="{{ v }}" {{ 'selected' if a.warranty == v }}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-auto"><button class="btn btn-sm btn-secondary">Apply</button>
+      <a class="btn btn-sm btn-link" href="{{ url_for('assets.index') }}">Reset</a></div>
+  </div>
+</form>
+<div class="card">
+  <table class="table table-sm table-hover mb-0">
+    <thead class="table-light"><tr>
+      {{ m.sort_th('Asset tag', 'tag') }}{{ m.sort_th('Model', 'model') }}<th>Serial</th>
+      {{ m.sort_th('Status', 'status') }}{{ m.sort_th('Location', 'location') }}<th>Assigned to</th>
+      {{ m.sort_th('Purchased', 'purchased') }}{{ m.sort_th('Cost', 'cost', 'num') }}{{ m.sort_th('Warranty end', 'warranty') }}
+    </tr></thead>
+    <tbody>
+      {% for asset in page.items %}
+      <tr>
+        <td><a class="fw-semibold" href="{{ url_for('assets.detail', asset_id=asset.id) }}">{{ asset.asset_tag }}</a></td>
+        <td>{{ asset.model.display_name }} <span class="small text-secondary">{{ asset.model.category.name }}</span></td>
+        <td class="small font-monospace">{{ asset.serial_number or '—' }}</td>
+        <td>{{ m.status(asset.status) }}</td>
+        <td>{{ asset.location.name if asset.location else '—' }}</td>
+        <td>{% if asset.open_assignment %}<a href="{{ url_for('employees.detail', employee_id=asset.open_assignment.employee_id) }}">{{ asset.open_assignment.employee.full_name }}</a>{% else %}<span class="text-secondary">—</span>{% endif %}</td>
+        <td class="small">{{ asset.purchase_date|d }}</td>
+        <td class="num">{{ asset.purchase_cost|eur }}</td>
+        <td class="small {{ 'text-danger' if asset.warranty_end_date and asset.warranty_end_date < today }}">{{ asset.warranty_end_date|d }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="text-center text-secondary py-4">No assets match these filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ m.pagination(page) }}
+{% endblock %}

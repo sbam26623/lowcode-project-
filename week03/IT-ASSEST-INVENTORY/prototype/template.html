@@ -1,0 +1,633 @@
+<meta charset="utf-8">
+<title>Nordwind IT Asset Inventory</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: operations console. Dark navy rail + cool-grey work surface; tags and serials in mono like the printed labels. */
+:root {
+  --bg: #f2f4f7; --surface: #ffffff; --surface-2: #eceff3; --ink: #18212b; --muted: #5a6672; --line: #d8dee5;
+  --accent: #1d5bbf; --accent-ink: #ffffff; --rail: #13202e; --rail-ink: #d5dfea; --rail-muted: #8a9bad;
+  --ok: #1b7a4a; --warn: #9a6200; --bad: #bf3328; --idle: #66717d;
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-head: "IBM Plex Sans Condensed", "Arial Narrow", "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e141b; --surface: #16202a; --surface-2: #1c2733; --ink: #e5ebf1; --muted: #98a5b3; --line: #2a3643;
+  --accent: #74a4ff; --accent-ink: #0b1420; --rail: #0a1017; --rail-ink: #d5dfea; --rail-muted: #7d8ea0;
+  --ok: #4fc58c; --warn: #e2a640; --bad: #ff6d61; --idle: #8f9aa6; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e141b; --surface: #16202a; --surface-2: #1c2733; --ink: #e5ebf1; --muted: #98a5b3; --line: #2a3643;
+  --accent: #74a4ff; --accent-ink: #0b1420; --rail: #0a1017; --rail-ink: #d5dfea; --rail-muted: #7d8ea0;
+  --ok: #4fc58c; --warn: #e2a640; --bad: #ff6d61; --idle: #8f9aa6; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font-ui); }
+.app { display: grid; grid-template-columns: 216px minmax(0, 1fr); min-height: 100vh; }
+.rail { background: var(--rail); color: var(--rail-ink); padding-block: 18px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 14px;
+  position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 18px; }
+.brand { font: 600 15px/1.2 var(--font-head); letter-spacing: .01em; }
+.brand small { display: block; font: 400 12px var(--font-ui); color: var(--rail-muted); margin-top: 2px; }
+.rail nav { display: flex; flex-direction: column; gap: 2px; }
+.rail a { color: var(--rail-ink); text-decoration: none; padding: 7px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+.rail a:hover { background: color-mix(in srgb, var(--rail-ink) 9%, transparent); }
+.rail a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
+.rail .count { font: 500 11px var(--font-mono); opacity: .8; }
+.rail .who { margin-top: auto; font-size: 12px; color: var(--rail-muted); }
+.rail .who b { display: block; color: var(--rail-ink); font-weight: 500; }
+main { min-width: 0; padding-block: 20px 48px; padding-left: max(16px, 28px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px), 28px); }
+.notice { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: var(--muted); margin-bottom: 18px; }
+.notice b { color: var(--ink); font-weight: 600; }
+h1 { font: 600 26px/1.15 var(--font-head); margin: 0; text-wrap: balance; }
+h2 { font: 600 16px/1.25 var(--font-head); margin: 0; letter-spacing: .01em; }
+.head { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
+.sub { color: var(--muted); margin-top: 4px; }
+.mono { font-family: var(--font-mono); font-size: 12.5px; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.panel > header { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.panel > .body { padding: 14px 16px; }
+.grid { display: grid; gap: 14px; }
+.g-stats { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stat { padding: 12px 14px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.stat:hover { border-color: var(--accent); }
+.stat .v { font: 600 26px/1.1 var(--font-head); font-variant-numeric: tabular-nums; margin-top: 6px; }
+.stat .v.money { font-size: 20px; }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap;
+  color: var(--c, var(--idle)); background: color-mix(in srgb, var(--c, var(--idle)) 14%, transparent); }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.s-instock { --c: var(--ok); } .s-assigned { --c: var(--accent); } .s-inrepair { --c: var(--warn); } .s-retired { --c: var(--idle); } .s-disposed { --c: var(--muted); }
+.s-pending { --c: var(--warn); } .s-accepted { --c: var(--ok); } .s-disputed { --c: var(--bad); } .s-expired { --c: var(--idle); } .s-leaver { --c: var(--idle); } .s-overdue { --c: var(--bad); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+th { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); white-space: nowrap; }
+th button { all: unset; cursor: pointer; }
+th button:focus-visible { outline: 2px solid var(--accent); }
+tbody tr:last-child td { border-bottom: 0; }
+tfoot td { font-weight: 600; background: var(--surface-2); }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+a, .link { color: var(--accent); text-decoration: none; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
+a:hover, .link:hover { text-decoration: underline; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 12px 16px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 12px; color: var(--muted); }
+input, select, textarea { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; min-width: 0; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn { font: 500 13px var(--font-ui); border-radius: 6px; padding: 6px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.btn.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 16px; color: var(--muted); font-size: 12.5px; flex-wrap: wrap; }
+.bars { display: grid; gap: 8px; }
+.bar { display: grid; grid-template-columns: 130px minmax(0, 1fr) 44px; gap: 10px; align-items: center; font-size: 13px; }
+.bar .track { height: 14px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); border-radius: 3px; }
+.bar.alt .fill { background: color-mix(in srgb, var(--accent) 55%, var(--ok)); }
+.list { display: grid; gap: 0; }
+.list > div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); align-items: center; }
+.list > div:last-child { border-bottom: 0; }
+.empty { color: var(--muted); padding: 6px 0; }
+.kv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; }
+.kv dt { font-size: 12px; color: var(--muted); }
+.kv dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 12px; overflow-x: auto; }
+.tabs button { all: unset; cursor: pointer; padding: 10px 12px; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 500; }
+.tabs button:focus-visible { outline: 2px solid var(--accent); }
+.timeline { display: grid; gap: 12px; }
+.tl { border-left: 2px solid var(--line); padding-left: 12px; position: relative; }
+.tl::before { content: ""; position: absolute; left: -5px; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.tl .meta { font-size: 12px; color: var(--muted); }
+.tl .act { display: inline-block; font: 500 11.5px var(--font-mono); background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; margin-right: 6px; }
+.diff { font: 12px var(--font-mono); color: var(--muted); }
+.diff del { color: var(--bad); } .diff ins { color: var(--ok); text-decoration: none; }
+.meter { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; margin-top: 12px; }
+.meter > div { height: 100%; background: var(--accent); }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.tile .k { font-size: 12px; color: var(--muted); }
+.tile .v { font: 600 18px var(--font-head); font-variant-numeric: tabular-nums; }
+.crumb { font-size: 12.5px; margin-bottom: 8px; }
+.alert { border-radius: 8px; padding: 9px 12px; margin-bottom: 14px; border: 1px solid color-mix(in srgb, var(--c) 40%, var(--line)); background: color-mix(in srgb, var(--c) 10%, var(--surface)); --c: var(--warn); }
+dialog { border: 1px solid var(--line); border-radius: 12px; padding: 0; width: min(520px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); }
+dialog::backdrop { background: rgb(8 14 20 / .45); }
+dialog form > header { padding: 14px 18px; border-bottom: 1px solid var(--line); }
+dialog .fields { padding: 16px 18px; display: grid; gap: 12px; }
+dialog footer { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+dialog .note { font-size: 12.5px; color: var(--muted); }
+.check { display: flex; gap: 8px; align-items: center; }
+.toast { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); max-width: min(420px, calc(100vw - 32px));
+  background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / .2); z-index: 20; }
+.toast.err { background: var(--bad); color: #fff; }
+.muted { color: var(--muted); }
+.row-gap { display: grid; gap: 14px; }
+@media (max-width: 1100px) { .g-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } .g-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 820px) {
+  .app { grid-template-columns: 1fr; }
+  .rail { position: sticky; top: env(safe-area-inset-top, 0px); height: auto; flex-direction: row; align-items: center; gap: 12px; padding-block: 10px; z-index: 5;
+    padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow-x: auto; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--rail); }
+  .rail nav { flex-direction: row; } .rail .who, .brand small { display: none; } .rail .count { display: none; }
+  .rail a { white-space: nowrap; }
+  main { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .g-2, .g-3 { grid-template-columns: 1fr; } .g-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bar { grid-template-columns: 96px minmax(0, 1fr) 36px; }
+}
+@media (prefers-reduced-motion: no-preference) { .toast { animation: rise .18s ease-out; } @keyframes rise { from { transform: translateY(8px); opacity: .6; } } }
+</style>
+
+<div class="app">
+  <aside class="rail">
+    <div class="brand">Nordwind IT Assets<small>Nordwind Logistik GmbH (demo)</small></div>
+    <nav id="nav" aria-label="Main"></nav>
+    <div class="who"><b>Deniz Arslan</b>IT Asset Manager</div>
+  </aside>
+  <main id="main"></main>
+</div>
+<dialog id="dlg"></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+const D = /*__DATA__*/null;
+const TODAY = D.today;
+const ME = "Deniz Arslan";
+const STATUSES = ["In Stock", "Assigned", "In Repair", "Retired", "Disposed"];
+const ACTIVE = ["In Stock", "Assigned", "In Repair"];
+
+// ---- indexes ---------------------------------------------------------------
+const by = (list) => Object.fromEntries(list.map((x) => [x.id, x]));
+const assets = by(D.assets), models = by(D.models), cats = by(D.categories), locs = by(D.locations),
+      depts = by(D.departments), emps = by(D.employees), vendors = by(D.vendors);
+let nextId = 100000;
+
+// ---- formatting --------------------------------------------------------------
+const eurFmt = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+const eur = (v) => (v == null ? "—" : eurFmt.format(v));
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const d = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "—");
+const dt = (iso) => (iso ? `${d(iso)} ${iso.slice(11, 16)}` : "—");
+const cls = (s) => "s-" + String(s).toLowerCase().replace(/\s+/g, "");
+const pill = (s, label) => `<span class="pill ${cls(s)}">${esc(label ?? s)}</span>`;
+const nowIso = () => new Date().toISOString().slice(0, 19);
+const addDays = (iso, n) => { const t = new Date(iso + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+const modelName = (a) => { const m = models[a.modelId]; return `${m.maker} ${m.name}`; };
+const category = (a) => cats[models[a.modelId].categoryId];
+
+// ---- domain rules (mirror app/services) -------------------------------------
+function monthsBetween(a, b) {
+  const [y1, m1, d1] = a.split("-").map(Number), [y2, m2, d2] = b.split("-").map(Number);
+  let m = (y2 - y1) * 12 + (m2 - m1); if (d2 < d1) m -= 1; return Math.max(m, 0);
+}
+const r2 = (x) => Math.round(x * 100) / 100;
+function depreciation(a, asAt = TODAY) {
+  if (a.cost == null || !a.purchased) return null;
+  const c = category(a), life = c.life, residual = r2(a.cost * c.residual / 100);
+  const monthly = (a.cost - residual) / life;
+  const end = a.disposal?.disposed && a.disposal.disposed < asAt ? a.disposal.disposed : asAt;
+  const months = Math.min(monthsBetween(a.purchased, end), life);
+  const book = Math.max(a.cost - r2(monthly * months), residual);
+  return { cost: a.cost, residual, monthly: r2(monthly), life, months, accumulated: r2(a.cost - book), book };
+}
+const ALLOWED = { "In Stock": ["Assigned", "In Repair", "Retired"], "Assigned": ["In Stock", "In Repair"],
+  "In Repair": ["In Stock", "Assigned", "Retired"], "Retired": ["Disposed", "In Stock"], "Disposed": [] };
+const openAssignment = (assetId) => D.assignments.find((x) => x.assetId === assetId && !x.in);
+const openRepair = (assetId) => D.repairs.find((r) => r.assetId === assetId && !r.completed);
+const isOverdue = (x) => { if (x.in) return false; if (x.expected && x.expected < TODAY) return true;
+  const e = emps[x.employeeId]; return e.status === "LEAVER" && e.leaving && e.leaving < TODAY; };
+function transition(a, to, action, note, employeeId = null) {
+  if (!ALLOWED[a.status].includes(to)) throw new Error(`${a.tag} cannot move from ${a.status} to ${to}.`);
+  log(a, action, note, { status: [a.status, to] }, employeeId);
+  a.status = to;
+}
+function log(a, action, note, changes, employeeId = null) {
+  D.audit.unshift({ at: nowIso(), user: action.startsWith("ack_") ? null : ME, type: "asset", label: a.tag,
+    action, note, assetId: a.id, employeeId, changes });
+}
+const ops = {
+  checkout(a, empId, expected, cond) {
+    const e = emps[empId];
+    if (a.status !== "In Stock") throw new Error(`Only In Stock assets can be checked out; ${a.tag} is ${a.status}.`);
+    if (!e) throw new Error("Choose an employee.");
+    if (e.status !== "ACTIVE") throw new Error(`${e.name} is a leaver and cannot receive assets.`);
+    transition(a, "Assigned", "check_out", `Checked out to ${e.name} (${e.code})`, e.id);
+    a.locationId = e.locationId;
+    D.assignments.push({ id: nextId++, assetId: a.id, employeeId: e.id, out: nowIso(), expected: expected || null, condOut: cond,
+      in: null, condIn: null, ack: { status: "Pending", sent: nowIso(), responded: null } });
+    return `${a.tag} checked out to ${e.name}. Acknowledgement email logged for ${e.email}.`;
+  },
+  checkin(a, cond) {
+    const x = openAssignment(a.id);
+    if (!x) throw new Error(`${a.tag} is not checked out.`);
+    if (a.status === "In Repair") throw new Error("Close the open repair before checking this asset in.");
+    x.in = nowIso(); x.condIn = cond;
+    const e = emps[x.employeeId];
+    if (cond === "Damaged") {
+      transition(a, "In Repair", "check_in", `Returned damaged by ${e.name}`, e.id);
+      D.repairs.push({ id: nextId++, assetId: a.id, reported: TODAY, issue: "Returned damaged at check-in", type: "Internal", completed: null });
+    } else transition(a, "In Stock", "check_in", `Returned by ${e.name} (${cond})`, e.id);
+    return `${a.tag} checked in; now ${a.status}.`;
+  },
+  repair(a, issue, type) {
+    if (!issue.trim()) throw new Error("Describe the issue.");
+    transition(a, "In Repair", "repair_opened", issue);
+    D.repairs.push({ id: nextId++, assetId: a.id, reported: TODAY, issue, type, completed: null });
+    return `Repair opened; ${a.tag} is In Repair.`;
+  },
+  closeRepair(a, outcome, cost, resolution) {
+    const r = openRepair(a.id);
+    Object.assign(r, { completed: TODAY, outcome, cost: cost === "" ? null : Number(cost.replace(",", ".")), resolution });
+    transition(a, openAssignment(a.id) ? "Assigned" : "In Stock", "repair_closed", `Repair closed: ${outcome}`);
+    return outcome === "Beyond repair" ? `Repair closed as beyond repair. Retire ${a.tag} next.` : `Repair closed; ${a.tag} is ${a.status}.`;
+  },
+  retire(a, reason) {
+    if (openAssignment(a.id)) throw new Error(`Check ${a.tag} in before retiring it.`);
+    const r = openRepair(a.id); if (r) Object.assign(r, { completed: TODAY, outcome: "Beyond repair" });
+    transition(a, "Retired", "retire", reason);
+    a.disposal = { retired: TODAY, reason, disposed: null };
+    return `${a.tag} retired.`;
+  },
+  dispose(a, method, wipe, confirmed, sale) {
+    if (!confirmed) throw new Error("Confirm the data wipe before disposing of an asset.");
+    transition(a, "Disposed", "dispose", method);
+    Object.assign(a.disposal, { disposed: TODAY, method, wipe, wipeConfirmed: true, sale: sale ? Number(sale.replace(",", ".")) : null });
+    return `${a.tag} disposed. The record is now read-only.`;
+  },
+  ack(a, accept) {
+    const x = openAssignment(a.id), e = emps[x.employeeId];
+    x.ack = { ...x.ack, status: accept ? "Accepted" : "Disputed", responded: nowIso(), typed: accept ? e.name : null,
+      comment: accept ? null : "Not received yet, still at reception?" };
+    log(a, accept ? "ack_accepted" : "ack_disputed", `${e.name} ${accept ? "accepted" : "disputed"} ${a.tag}`, null, e.id);
+    return accept ? `${e.name} accepted ${a.tag}.` : `${e.name} reported a problem; IT notified.`;
+  },
+};
+
+// ---- UI state -----------------------------------------------------------------
+const VIEWS = [["dashboard", "Dashboard"], ["assets", "Assets"], ["employees", "Employees"], ["assignments", "Assignments"], ["reports", "Reports"], ["audit", "Audit log"]];
+const S = { view: "dashboard", assetId: null, employeeId: null, assetTab: "details", report: "inventory",
+  af: { q: "", status: "", cat: "", loc: "", warranty: "", sort: "tag", dir: 1, page: 1 },
+  ef: { q: "", dept: "", status: "", page: 1 }, xf: { ack: "", overdue: false }, auf: { q: "", action: "", page: 1 },
+  asAt: TODAY, group: "location" };
+const main = document.getElementById("main");
+
+function go(view, extra = {}) {
+  Object.assign(S, { view, assetId: null, employeeId: null }, extra);
+  if (!extra.assetId && !extra.employeeId) { try { history.replaceState(null, "", "#" + view); } catch (e) { /* sandboxed */ } }
+  render(); window.scrollTo?.(0, 0);
+}
+const openAsset = (id, tab = "details") => go("assets", { assetId: id, assetTab: tab });
+const openEmployee = (id) => go("employees", { employeeId: id });
+
+function toast(msg, err = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.className = "toast" + (err ? " err" : ""); t.hidden = false;
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => (t.hidden = true), 4200);
+}
+
+function renderNav() {
+  const pending = D.assignments.filter((x) => !x.in && x.ack && x.ack.status !== "Accepted").length;
+  const counts = { assets: D.assets.filter((a) => a.status !== "Disposed").length, employees: D.employees.length, assignments: pending };
+  document.getElementById("nav").innerHTML = VIEWS.map(([k, label]) =>
+    `<a href="#${k}" data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${label}${counts[k] != null ? `<span class="count">${counts[k]}</span>` : ""}</a>`).join("");
+}
+
+function render() {
+  renderNav();
+  const notice = `<div class="notice"><b>Clickable prototype.</b> Fictional company and randomly generated data (seed 2026). Try check-out, check-in, repairs, retirement and disposal: the same lifecycle rules as the Flask app apply. Changes stay in this tab and reset on reload.</div>`;
+  const view = S.assetId ? assetDetail(assets[S.assetId]) : S.employeeId ? employeeDetail(emps[S.employeeId])
+    : { dashboard, assets: assetList, employees: employeeList, assignments: assignmentList, reports, audit: auditLog }[S.view]();
+  main.innerHTML = notice + view;
+}
+
+// ---- dashboard ------------------------------------------------------------------
+function bars(rows, alt = false) {
+  const max = Math.max(...rows.map((r) => r[1]), 1);
+  return `<div class="bars">${rows.map(([k, v]) => `<div class="bar ${alt ? "alt" : ""}"><span>${esc(k)}</span>
+    <div class="track" role="img" aria-label="${esc(k)}: ${v}"><div class="fill" style="width:${(100 * v / max).toFixed(1)}%"></div></div><span class="num">${v}</span></div>`).join("")}</div>`;
+}
+function countBy(list, key) { const m = {}; list.forEach((x) => { const k = key(x); m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); }
+
+function dashboard() {
+  const active = D.assets.filter((a) => ACTIVE.includes(a.status));
+  const book = active.reduce((s, a) => s + (depreciation(a)?.book || 0), 0);
+  const stats = STATUSES.map((s) => `<button class="panel stat" data-filter-status="${s}">${pill(s)}<div class="v">${D.assets.filter((a) => a.status === s).length}</div></button>`).join("");
+  const open = D.assignments.filter((x) => !x.in);
+  const attention = open.filter((x) => x.ack && x.ack.status !== "Accepted").sort((a, b) => a.out.localeCompare(b.out));
+  const overdue = open.filter(isOverdue);
+  const soon = active.filter((a) => a.warranty && a.warranty >= TODAY && a.warranty <= addDays(TODAY, 30)).sort((a, b) => a.warranty.localeCompare(b.warranty));
+  const w = [30, 60, 90].map((n) => [n, active.filter((a) => a.warranty && a.warranty >= TODAY && a.warranty <= addDays(TODAY, n)).length]);
+  const stock = {}; D.assets.forEach((a) => { if (a.status === "In Stock") stock[a.modelId] = (stock[a.modelId] || 0) + 1; });
+  const low = D.models.filter((m) => m.threshold != null && (stock[m.id] || 0) < m.threshold);
+  const recent = D.audit.filter((e) => e.type === "asset").slice(0, 8);
+  const tag = (a) => `<button class="link mono" data-asset="${a.id}">${a.tag}</button>`;
+  return `<div class="head"><div><h1>Dashboard</h1><div class="sub">${D.org} · as of ${d(TODAY)}</div></div></div>
+  <div class="grid g-stats">${stats}<div class="panel stat" style="cursor:default"><span class="muted" style="font-size:12px">Total book value</span><div class="v money">${eur(book)}</div></div></div>
+  <div class="grid g-2" style="margin-top:14px">
+    <section class="panel"><header><h2>Active assets by location</h2></header><div class="body">${bars(countBy(active, (a) => locs[a.locationId]?.name ?? "—"))}</div></section>
+    <section class="panel"><header><h2>Active assets by category</h2></header><div class="body">${bars(countBy(active, (a) => category(a).name), true)}</div></section>
+  </div>
+  <div class="grid g-3" style="margin-top:14px">
+    <section class="panel"><header><h2>Warranties expiring</h2><button class="link" data-report="warranty">Report</button></header><div class="body">
+      <div class="tiles" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:10px">${w.map(([n, c]) => `<div class="tile"><div class="v">${c}</div><div class="k">≤ ${n} days</div></div>`).join("")}</div>
+      <div class="list">${soon.slice(0, 6).map((a) => `<div>${tag(a)}<span class="muted" style="flex:1;font-size:12.5px">${esc(modelName(a))}</span><span class="num">${d(a.warranty)}</span></div>`).join("") || '<div class="empty">Nothing in the next 30 days.</div>'}</div></div></section>
+    <section class="panel"><header><h2>Acknowledgements needing attention</h2>${pill("Pending", attention.length)}</header><div class="body"><div class="list">
+      ${attention.slice(0, 8).map((x) => `<div>${tag(assets[x.assetId])}<span style="flex:1">${esc(emps[x.employeeId].name)}</span>${pill(x.ack.status)}</div>`).join("") || '<div class="empty">All acknowledged.</div>'}</div></div></section>
+    <section class="panel"><header><h2>Overdue returns</h2>${pill("Overdue", overdue.length)}</header><div class="body"><div class="list">
+      ${overdue.slice(0, 8).map((x) => { const e = emps[x.employeeId]; return `<div>${tag(assets[x.assetId])}<span style="flex:1">${esc(e.name)} ${e.status === "LEAVER" ? pill("Leaver") : ""}</span><span class="num">${d(x.expected || e.leaving)}</span></div>`; }).join("") || '<div class="empty">Nothing overdue.</div>'}</div></div></section>
+  </div>
+  <div class="grid g-2" style="margin-top:14px;grid-template-columns:minmax(0,1fr) minmax(0,2fr)">
+    <section class="panel"><header><h2>Low-stock models</h2></header><div class="table-wrap"><table><thead><tr><th>Model</th><th class="num">In stock</th><th class="num">Threshold</th></tr></thead><tbody>
+      ${low.map((m) => `<tr><td>${esc(m.maker + " " + m.name)}</td><td class="num" style="color:var(--bad);font-weight:600">${stock[m.id] || 0}</td><td class="num">${m.threshold}</td></tr>`).join("") || '<tr><td colspan="3" class="empty">Stock levels are fine.</td></tr>'}</tbody></table></div></section>
+    <section class="panel"><header><h2>Recent activity</h2><button class="link" data-view-link="audit">Audit log</button></header><div class="table-wrap"><table><tbody>
+      ${recent.map((e) => `<tr><td class="muted num" style="text-align:left">${dt(e.at)}</td><td>${e.assetId ? `<button class="link mono" data-asset="${e.assetId}" data-tab="history">${esc(e.label)}</button>` : esc(e.label)}</td><td><span class="mono">${esc(e.action.replace("_", " "))}</span></td><td>${esc(e.note ?? "")}</td><td class="muted">${esc(e.user ?? "Employee via link")}</td></tr>`).join("")}</tbody></table></div></section>
+  </div>`;
+}
+
+// ---- assets ----------------------------------------------------------------------
+function filteredAssets() {
+  const f = S.af, q = f.q.trim().toLowerCase();
+  let rows = D.assets.filter((a) => (f.status ? a.status === f.status : a.status !== "Disposed"));
+  if (f.cat) rows = rows.filter((a) => String(models[a.modelId].categoryId) === f.cat);
+  if (f.loc) rows = rows.filter((a) => String(a.locationId) === f.loc);
+  if (f.warranty === "expired") rows = rows.filter((a) => a.warranty && a.warranty < TODAY);
+  else if (f.warranty === "none") rows = rows.filter((a) => !a.warranty);
+  else if (f.warranty) rows = rows.filter((a) => a.warranty && a.warranty >= TODAY && a.warranty <= addDays(TODAY, Number(f.warranty)));
+  if (q) rows = rows.filter((a) => { const x = openAssignment(a.id);
+    return [a.tag, a.serial, modelName(a), x ? emps[x.employeeId].name : ""].some((s) => (s || "").toLowerCase().includes(q)); });
+  const key = { tag: (a) => a.tag, model: modelName, status: (a) => a.status, location: (a) => locs[a.locationId]?.name ?? "",
+    purchased: (a) => a.purchased ?? "", cost: (a) => a.cost ?? 0, warranty: (a) => a.warranty ?? "9999" }[f.sort];
+  return rows.sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * f.dir; });
+}
+const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(cur) === String(v) ? "selected" : ""}>${esc(label)}</option>`;
+function sortTh(label, key, num = false) {
+  const on = S.af.sort === key;
+  return `<th class="${num ? "num" : ""}" ${on ? `aria-sort="${S.af.dir > 0 ? "ascending" : "descending"}"` : ""}><button data-sort="${key}">${label}${on ? (S.af.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`;
+}
+function pager(total, page, size, ns) {
+  const pages = Math.max(Math.ceil(total / size), 1);
+  return `<div class="pager"><span>${total} result${total === 1 ? "" : "s"}${total ? ` · ${(page - 1) * size + 1}–${Math.min(page * size, total)}` : ""}</span>
+    <span class="actions"><button class="btn" data-page="${ns}:${page - 1}" ${page <= 1 ? "disabled" : ""}>Previous</button><span style="align-self:center">${page} / ${pages}</span><button class="btn" data-page="${ns}:${page + 1}" ${page >= pages ? "disabled" : ""}>Next</button></span></div>`;
+}
+function assetList() {
+  const f = S.af, rows = filteredAssets(), size = 25, page = Math.min(f.page, Math.max(Math.ceil(rows.length / size), 1));
+  return `<div class="head"><h1>Assets</h1></div>
+  <section class="panel"><div class="filters">
+    <div class="field" style="flex:2 1 220px"><label for="af-q">Search</label><input id="af-q" data-af="q" value="${esc(f.q)}" placeholder="Tag, serial, model or assignee"></div>
+    <div class="field"><label for="af-status">Status</label><select id="af-status" data-af="status">${opt("", "All except Disposed", f.status)}${STATUSES.map((s) => opt(s, s, f.status)).join("")}</select></div>
+    <div class="field"><label for="af-cat">Category</label><select id="af-cat" data-af="cat">${opt("", "All", f.cat)}${D.categories.map((c) => opt(c.id, c.name, f.cat)).join("")}</select></div>
+    <div class="field"><label for="af-loc">Location</label><select id="af-loc" data-af="loc">${opt("", "All", f.loc)}${D.locations.map((l) => opt(l.id, l.name, f.loc)).join("")}</select></div>
+    <div class="field"><label for="af-w">Warranty</label><select id="af-w" data-af="warranty">${[["", "Any"], ["30", "Expires ≤ 30 days"], ["90", "Expires ≤ 90 days"], ["expired", "Expired"], ["none", "No warranty"]].map(([v, l]) => opt(v, l, f.warranty)).join("")}</select></div>
+  </div>
+  <div class="table-wrap"><table><thead><tr>${sortTh("Asset tag", "tag")}${sortTh("Model", "model")}<th>Serial</th>${sortTh("Status", "status")}${sortTh("Location", "location")}<th>Assigned to</th>${sortTh("Purchased", "purchased")}${sortTh("Cost", "cost", true)}${sortTh("Warranty end", "warranty")}</tr></thead><tbody>
+  ${rows.slice((page - 1) * size, page * size).map((a) => { const x = openAssignment(a.id);
+    return `<tr class="clickable" data-asset="${a.id}"><td class="mono"><b>${a.tag}</b></td><td>${esc(modelName(a))} <span class="muted" style="font-size:12px">${esc(category(a).name)}</span></td>
+    <td class="mono">${esc(a.serial)}</td><td>${pill(a.status)}</td><td>${esc(locs[a.locationId]?.name ?? "—")}</td><td>${x ? esc(emps[x.employeeId].name) : '<span class="muted">—</span>'}</td>
+    <td class="num">${d(a.purchased)}</td><td class="num">${eur(a.cost)}</td><td class="num" style="${a.warranty && a.warranty < TODAY ? "color:var(--bad)" : ""}">${d(a.warranty)}</td></tr>`; }).join("") || '<tr><td colspan="9" class="empty" style="text-align:center">No assets match these filters.</td></tr>'}
+  </tbody></table></div>${pager(rows.length, page, size, "af")}</section>`;
+}
+
+function assetDetail(a) {
+  const x = openAssignment(a.id), rep = openRepair(a.id), dep = depreciation(a);
+  const history = D.audit.filter((e) => e.assetId === a.id);
+  const asg = D.assignments.filter((y) => y.assetId === a.id).sort((p, q) => q.out.localeCompare(p.out));
+  const reps = D.repairs.filter((r) => r.assetId === a.id).sort((p, q) => q.reported.localeCompare(p.reported));
+  const s = a.status;
+  const btn = (act, label, kind = "") => `<button class="btn ${kind}" data-act="${act}">${label}</button>`;
+  const acts = [s === "In Stock" && btn("checkout", "Check out", "primary"), s === "Assigned" && btn("checkin", "Check in", "primary"),
+    ["In Stock", "Assigned"].includes(s) && btn("repair", "Open repair", "warn"), rep && btn("closeRepair", "Close repair", "warn"),
+    ["In Stock", "In Repair", "Assigned"].includes(s) && btn("retire", "Retire"), s === "Retired" && btn("dispose", "Dispose", "bad"),
+    x && x.ack?.status === "Pending" && btn("ackAccept", "Simulate: employee accepts"), x && x.ack?.status === "Pending" && btn("ackDispute", "Simulate: employee disputes")].filter(Boolean).join("");
+  const tabs = [["details", "Details"], ["assignments", `Assignments (${asg.length})`], ["repairs", `Repairs (${reps.length})`], ["financials", "Financials"], ["history", `History (${history.length})`]];
+  const kv = (pairs) => `<dl class="kv">${pairs.map(([k, v]) => `<div><dt>${k}</dt><dd>${v ?? "—"}</dd></div>`).join("")}</dl>`;
+  let body = "";
+  if (S.assetTab === "details") body = kv([["Asset tag", `<span class="mono">${a.tag}</span>`], ["Model", esc(modelName(a))], ["Model number", esc(models[a.modelId].number)],
+    ["Category", esc(category(a).name)], ["Serial number", `<span class="mono">${esc(a.serial)}</span>`], ["Location", esc(locs[a.locationId]?.name)],
+    ["Address", esc(`${locs[a.locationId]?.address}, ${locs[a.locationId]?.city}`)], ["Purchase date", d(a.purchased)], ["Purchase cost", eur(a.cost)],
+    ["Vendor", esc(vendors[a.vendorId]?.name)], ["Invoice", `<span class="mono">${esc(a.invoice)}</span>`], ["Warranty end", d(a.warranty)],
+    ["Useful life", `${category(a).life} months`], ["Residual value", `${category(a).residual} %`],
+    ...Object.entries(a.custom || {}).map(([k, v]) => [esc(k), `<span class="${/IMEI|Phone/.test(k) ? "mono" : ""}">${esc(v)}</span>`])]);
+  if (S.assetTab === "assignments") body = `<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Checked out</th><th>Expected return</th><th>Condition out</th><th>Checked in</th><th>Condition in</th><th>Acknowledgement</th></tr></thead><tbody>
+    ${asg.map((y) => `<tr><td><button class="link" data-employee="${y.employeeId}">${esc(emps[y.employeeId].name)}</button></td><td class="num">${d(y.out)}</td>
+      <td class="num" style="${isOverdue(y) ? "color:var(--bad);font-weight:600" : ""}">${d(y.expected)}</td><td>${esc(y.condOut ?? "—")}</td><td class="num">${y.in ? d(y.in) : "Open"}</td><td>${esc(y.condIn ?? "—")}</td>
+      <td>${y.ack ? pill(y.ack.status) : "—"}${y.ack?.responded ? `<div class="muted" style="font-size:12px">${y.ack.typed ? `“${esc(y.ack.typed)}” ` : ""}${dt(y.ack.responded)}</div>` : ""}${y.ack?.comment ? `<div style="font-size:12px;color:var(--bad)">${esc(y.ack.comment)}</div>` : ""}</td></tr>`).join("") || '<tr><td colspan="7" class="empty">Never assigned.</td></tr>'}</tbody></table></div>`;
+  if (S.assetTab === "repairs") body = `<div class="table-wrap"><table><thead><tr><th>Reported</th><th>Issue</th><th>Type</th><th>Completed</th><th>Outcome</th><th>Resolution</th><th class="num">Cost</th></tr></thead><tbody>
+    ${reps.map((r) => `<tr><td class="num">${d(r.reported)}</td><td>${esc(r.issue)}</td><td>${esc(r.type)}</td><td class="num">${r.completed ? d(r.completed) : "Open"}</td><td>${esc(r.outcome ?? "—")}</td><td>${esc(r.resolution ?? "")}</td><td class="num">${r.cost == null ? "—" : eur(r.cost)}</td></tr>`).join("") || '<tr><td colspan="7" class="empty">No repairs logged.</td></tr>'}</tbody></table></div>`;
+  if (S.assetTab === "financials") {
+    const dd = depreciation(a, S.asAt), repairCost = reps.reduce((t, r) => t + (r.cost || 0), 0);
+    body = !dd ? '<p class="empty">No purchase data.</p>' : `<div class="field" style="max-width:200px;margin-bottom:12px"><label for="asat">Book value as at</label><input type="date" id="asat" value="${S.asAt}"></div>
+    <div class="tiles">${[["Purchase cost", eur(dd.cost)], [`Residual (${category(a).residual} %)`, eur(dd.residual)], ["Monthly depreciation", eur(dd.monthly)], ["Months depreciated", `${dd.months} of ${dd.life}`],
+      ["Accumulated depreciation", eur(dd.accumulated)], ["Book value", eur(dd.book)], ["Repairs to date", eur(repairCost)], ["Total cost of ownership", eur(dd.cost + repairCost)]].map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")}</div>
+    <div class="meter" role="img" aria-label="${Math.round(100 * dd.months / dd.life)}% depreciated"><div style="width:${(100 * dd.months / dd.life).toFixed(1)}%"></div></div>
+    <p class="muted" style="font-size:12.5px">Straight line: (${eur(dd.cost)} − ${eur(dd.residual)}) ÷ ${dd.life} months = ${eur(dd.monthly)} per month. Book value never drops below the residual value.</p>
+    ${a.disposal ? `<h2 style="margin-top:16px">Retirement and disposal</h2>${kv([["Retired", d(a.disposal.retired)], ["Reason", esc(a.disposal.reason)], ["Disposed", d(a.disposal.disposed)], ["Method", esc(a.disposal.method)], ["Recipient", esc(a.disposal.recipient)], ["Data wipe", esc(a.disposal.wipe)], ["Wipe confirmed", a.disposal.disposed ? (a.disposal.wipeConfirmed ? "Yes" : "No") : "—"], ["Sale value", a.disposal.sale == null ? "—" : eur(a.disposal.sale)], ["Gain / loss", a.disposal.disposed && dep ? eur((a.disposal.sale || 0) - depreciation(a, a.disposal.disposed).book) : "—"]])}` : ""}`;
+  }
+  if (S.assetTab === "history") body = timeline(history);
+  return `<div class="crumb"><button class="link" data-view-link="assets">Assets</button> / ${a.tag}</div>
+  <section class="panel" style="margin-bottom:14px"><div class="body" style="display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between">
+    <div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h1 class="mono" style="font-size:24px">${a.tag}</h1>${pill(s)}${x?.ack ? `<span class="muted">Acknowledgement</span> ${pill(x.ack.status)}` : ""}</div>
+      <div class="sub">${esc(modelName(a))} · ${esc(category(a).name)} · S/N <span class="mono">${esc(a.serial)}</span></div>
+      <div style="margin-top:4px">${x ? `Assigned to <button class="link" data-employee="${x.employeeId}">${esc(emps[x.employeeId].name)}</button> since ${d(x.out)} ${isOverdue(x) ? pill("Overdue", "Return overdue") : ""}` : '<span class="muted">Not assigned</span>'} · ${esc(locs[a.locationId]?.name ?? "")}</div></div>
+    <div class="actions" style="align-self:flex-start">${acts || '<span class="muted">Disposed assets are read-only.</span>'}</div></div>
+    <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-tab-sel="${k}" aria-selected="${S.assetTab === k}">${l}</button>`).join("")}</div>
+    <div class="body">${body}</div></section>`;
+}
+
+function timeline(entries) {
+  if (!entries.length) return '<p class="empty">No history yet.</p>';
+  return `<div class="timeline">${entries.slice(0, 60).map((e) => `<div class="tl"><div class="meta">${dt(e.at)} · ${esc(e.user ?? "Employee via link")}</div>
+    <div><span class="act">${esc(e.action.replace("_", " "))}</span>${esc(e.note ?? "")}</div>
+    ${e.changes ? `<div class="diff">${Object.entries(e.changes).map(([k, [o, n]]) => `${esc(k)}: <del>${esc(o ?? "∅")}</del> → <ins>${esc(n ?? "∅")}</ins>`).join("<br>")}</div>` : ""}</div>`).join("")}</div>`;
+}
+
+// ---- employees ---------------------------------------------------------------------
+function employeeList() {
+  const f = S.ef, q = f.q.trim().toLowerCase();
+  const held = {}; D.assignments.forEach((x) => { if (!x.in) held[x.employeeId] = (held[x.employeeId] || 0) + 1; });
+  let rows = D.employees.filter((e) => (!f.dept || String(e.departmentId) === f.dept) && (!f.status || e.status === f.status)
+    && (!q || [e.name, e.email, e.code].some((s) => s.toLowerCase().includes(q)))).sort((a, b) => a.name.localeCompare(b.name, "de"));
+  const size = 25, page = Math.min(f.page, Math.max(Math.ceil(rows.length / size), 1));
+  return `<div class="head"><h1>Employees</h1></div><section class="panel"><div class="filters">
+    <div class="field" style="flex:2 1 220px"><label for="ef-q">Search</label><input id="ef-q" data-ef="q" value="${esc(f.q)}" placeholder="Name, email or employee ID"></div>
+    <div class="field"><label for="ef-d">Department</label><select id="ef-d" data-ef="dept">${opt("", "All", f.dept)}${D.departments.map((x) => opt(x.id, x.name, f.dept)).join("")}</select></div>
+    <div class="field"><label for="ef-s">Status</label><select id="ef-s" data-ef="status">${opt("", "All", f.status)}${opt("ACTIVE", "Active", f.status)}${opt("LEAVER", "Leaver", f.status)}</select></div></div>
+  <div class="table-wrap"><table><thead><tr><th>Name</th><th>Employee ID</th><th>Email</th><th>Department</th><th>Location</th><th>Status</th><th class="num">Assets held</th></tr></thead><tbody>
+  ${rows.slice((page - 1) * size, page * size).map((e) => `<tr class="clickable" data-employee="${e.id}"><td><b>${esc(e.name)}</b></td><td class="mono">${e.code}</td><td>${esc(e.email)}</td>
+    <td>${esc(depts[e.departmentId]?.name)}</td><td>${esc(locs[e.locationId]?.name)}</td><td>${e.status === "LEAVER" ? pill("Leaver", `Leaver ${d(e.leaving)}`) : pill("In Stock", "Active")}</td>
+    <td class="num" style="${e.status === "LEAVER" && held[e.id] ? "color:var(--bad);font-weight:600" : ""}">${held[e.id] || 0}</td></tr>`).join("")}</tbody></table></div>${pager(rows.length, page, size, "ef")}</section>`;
+}
+function employeeDetail(e) {
+  const mine = D.assignments.filter((x) => x.employeeId === e.id).sort((a, b) => b.out.localeCompare(a.out));
+  const cur = mine.filter((x) => !x.in), past = mine.filter((x) => x.in);
+  const mgr = emps[e.managerId];
+  return `<div class="crumb"><button class="link" data-view-link="employees">Employees</button> / ${esc(e.name)}</div>
+  <section class="panel" style="margin-bottom:14px"><div class="body"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h1>${esc(e.name)}</h1>${e.status === "LEAVER" ? pill("Leaver", `Leaver · ${d(e.leaving)}`) : ""}</div>
+    <div class="sub"><span class="mono">${e.code}</span> · ${esc(e.email)} · ${esc(depts[e.departmentId]?.name)} · ${esc(locs[e.locationId]?.name)}${mgr ? ` · Manager: <button class="link" data-employee="${mgr.id}">${esc(mgr.name)}</button>` : ""}</div></div></section>
+  ${e.status === "LEAVER" && cur.length ? `<div class="alert">${cur.length} asset${cur.length > 1 ? "s" : ""} still held. Return ${e.leaving < TODAY ? "was" : "is"} due on ${d(e.leaving)}.</div>` : ""}
+  <div class="grid g-2" style="grid-template-columns:minmax(0,3fr) minmax(0,2fr)"><div class="row-gap">
+    <section class="panel"><header><h2>Current assets (${cur.length})</h2></header><div class="table-wrap"><table><thead><tr><th>Asset</th><th>Model</th><th>Since</th><th>Acknowledgement</th></tr></thead><tbody>
+      ${cur.map((x) => `<tr class="clickable" data-asset="${x.assetId}"><td class="mono">${assets[x.assetId].tag}</td><td>${esc(modelName(assets[x.assetId]))}</td><td class="num">${d(x.out)}</td><td>${x.ack ? pill(x.ack.status) : "—"}</td></tr>`).join("") || '<tr><td colspan="4" class="empty">No assets held.</td></tr>'}</tbody></table></div></section>
+    <section class="panel"><header><h2>Assignment history</h2></header><div class="table-wrap"><table><thead><tr><th>Asset</th><th>Model</th><th>Out</th><th>In</th><th>Return condition</th></tr></thead><tbody>
+      ${past.map((x) => `<tr class="clickable" data-asset="${x.assetId}"><td class="mono">${assets[x.assetId].tag}</td><td>${esc(modelName(assets[x.assetId]))}</td><td class="num">${d(x.out)}</td><td class="num">${d(x.in)}</td><td>${esc(x.condIn)}</td></tr>`).join("") || '<tr><td colspan="5" class="empty">No past assignments.</td></tr>'}</tbody></table></div></section></div>
+    <section class="panel"><header><h2>History</h2></header><div class="body">${timeline(D.audit.filter((x) => x.employeeId === e.id))}</div></section></div>`;
+}
+
+// ---- assignments -------------------------------------------------------------------
+function assignmentList() {
+  let rows = D.assignments.filter((x) => !x.in).sort((a, b) => b.out.localeCompare(a.out));
+  if (S.xf.ack) rows = rows.filter((x) => x.ack?.status === S.xf.ack);
+  if (S.xf.overdue) rows = rows.filter(isOverdue);
+  return `<div class="head"><h1>Open assignments</h1></div><section class="panel"><div class="filters">
+    <div class="field"><label for="xf-ack">Acknowledgement</label><select id="xf-ack" data-xf="ack">${opt("", "Any", S.xf.ack)}${["Pending", "Accepted", "Disputed", "Expired"].map((s) => opt(s, s, S.xf.ack)).join("")}</select></div>
+    <label class="check"><input type="checkbox" id="xf-od" data-xf="overdue" ${S.xf.overdue ? "checked" : ""}> Overdue returns only</label></div>
+  <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Model</th><th>Employee</th><th>Checked out</th><th>Expected return</th><th>Acknowledgement</th></tr></thead><tbody>
+  ${rows.map((x) => { const e = emps[x.employeeId], a = assets[x.assetId];
+    return `<tr class="clickable" data-asset="${a.id}" data-tab="assignments"><td class="mono"><b>${a.tag}</b></td><td>${esc(modelName(a))}</td><td>${esc(e.name)} ${e.status === "LEAVER" ? pill("Leaver") : ""}</td><td class="num">${d(x.out)}</td>
+    <td class="num">${isOverdue(x) ? `<span style="color:var(--bad);font-weight:600">${d(x.expected || e.leaving)} · overdue</span>` : d(x.expected)}</td><td>${x.ack ? pill(x.ack.status) : "—"}</td></tr>`; }).join("") || '<tr><td colspan="6" class="empty" style="text-align:center">Nothing matches.</td></tr>'}
+  </tbody></table></div><div class="pager"><span>${rows.length} assignment${rows.length === 1 ? "" : "s"}</span></div></section>`;
+}
+
+// ---- reports -------------------------------------------------------------------------
+const REPORTS = [["inventory", "RPT-01 Inventory"], ["warranty", "RPT-03 Warranty"], ["aging", "RPT-04 Aging"], ["financial", "RPT-05 Depreciation"], ["disposals", "RPT-08 Disposal register"]];
+function table(cols, rows, foot, numFrom = 1) {
+  const td = (v, i) => `<td class="${i >= numFrom && (typeof v === "number" || /€|^\d/.test(String(v))) ? "num" : ""}">${v}</td>`;
+  return `<div class="table-wrap"><table><thead><tr>${cols.map((c, i) => `<th class="${i >= numFrom ? "num" : ""}">${c}</th>`).join("")}</tr></thead><tbody>
+    ${rows.map((r) => `<tr>${r.map(td).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length}" class="empty">No rows.</td></tr>`}</tbody>
+    ${foot ? `<tfoot><tr>${foot.map(td).join("")}</tr></tfoot>` : ""}</table></div>`;
+}
+const sum = (rows, i) => rows.reduce((t, r) => t + (typeof r[i] === "number" ? r[i] : 0), 0);
+function reports() {
+  const active = D.assets.filter((a) => ACTIVE.includes(a.status));
+  let title = "", desc = "", controls = "", out = "";
+  if (S.report === "inventory") {
+    const st = STATUSES.slice(0, 4), g = S.group, m = {};
+    D.assets.filter((a) => a.status !== "Disposed").forEach((a) => { const k = g === "category" ? category(a).name : locs[a.locationId]?.name ?? "—"; (m[k] ??= {})[a.status] = ((m[k] ?? {})[a.status] || 0) + 1; });
+    const rows = Object.keys(m).sort().map((k) => [esc(k), ...st.map((s) => m[k][s] || 0), st.reduce((t, s) => t + (m[k][s] || 0), 0)]);
+    title = "Inventory by status"; desc = "Asset counts per group and status, disposed assets excluded.";
+    controls = `<div class="field"><label for="grp">Group by</label><select id="grp" data-group>${opt("location", "Location", g)}${opt("category", "Category", g)}</select></div>`;
+    out = table([g === "category" ? "Category" : "Location", ...st, "Total"], rows, ["Total", ...st.map((_, i) => sum(rows, i + 1)), sum(rows, 5)]);
+  } else if (S.report === "warranty") {
+    const rows = active.filter((a) => !a.warranty || a.warranty <= addDays(TODAY, 90)).sort((a, b) => (a.warranty ?? "9999").localeCompare(b.warranty ?? "9999"))
+      .map((a) => [`<button class="link mono" data-asset="${a.id}">${a.tag}</button>`, esc(modelName(a)), pill(a.status), esc(locs[a.locationId]?.name), d(a.warranty),
+        a.warranty ? Math.round((new Date(a.warranty) - new Date(TODAY)) / 864e5) : "—", !a.warranty ? "No warranty" : a.warranty < TODAY ? "Expired" : "Expiring ≤ 90 days"]);
+    title = "Warranty status"; desc = "Active assets with an expired warranty, one expiring within 90 days, or none recorded.";
+    out = table(["Asset tag", "Model", "Status", "Location", "Warranty end", "Days left", "Bucket"], rows, null, 4);
+  } else if (S.report === "aging") {
+    const bands = ["0–1 y", "1–2 y", "2–3 y", "3–4 y", "4+ y"], m = {};
+    active.forEach((a) => { const c = category(a).name, mo = monthsBetween(a.purchased, TODAY); m[c] ??= { b: [0, 0, 0, 0, 0], past: 0, cost: 0 };
+      m[c].b[Math.min(Math.floor(mo / 12), 4)]++; if (mo >= category(a).life) { m[c].past++; m[c].cost += a.cost; } });
+    const rows = Object.keys(m).sort().map((c) => [esc(c), ...m[c].b, m[c].b.reduce((x, y) => x + y, 0), m[c].past, eur(m[c].cost)]);
+    title = "Asset aging and refresh planning"; desc = "Active assets per category by age since purchase, and the replacement cost of those past their useful life.";
+    out = table(["Category", ...bands, "Total", "Past useful life", "Replacement cost"], rows,
+      ["Total", ...bands.map((_, i) => sum(rows, i + 1)), sum(rows, 6), sum(rows, 7), eur(Object.values(m).reduce((t, x) => t + x.cost, 0))]);
+  } else if (S.report === "financial") {
+    const g = S.group, m = {};
+    active.filter((a) => a.purchased <= S.asAt).forEach((a) => { const k = g === "category" ? category(a).name : locs[a.locationId]?.name ?? "—", x = depreciation(a, S.asAt);
+      m[k] ??= [0, 0, 0, 0]; m[k][0]++; m[k][1] += x.cost; m[k][2] += x.accumulated; m[k][3] += x.book; });
+    const keys = Object.keys(m).sort(), rows = keys.map((k) => [esc(k), m[k][0], eur(m[k][1]), eur(m[k][2]), eur(m[k][3])]);
+    const tot = [0, 1, 2, 3].map((i) => keys.reduce((t, k) => t + m[k][i], 0));
+    title = "Depreciation"; desc = "Straight-line cost, accumulated depreciation and book value of active assets as at a date.";
+    controls = `<div class="field"><label for="grp">Group by</label><select id="grp" data-group>${opt("location", "Location", g)}${opt("category", "Category", g)}</select></div>
+      <div class="field"><label for="rasat">As at</label><input type="date" id="rasat" value="${S.asAt}"></div>`;
+    out = table([g === "category" ? "Category" : "Location", "Assets", "Total cost", "Accumulated depreciation", "Book value"], rows, ["Total", tot[0], eur(tot[1]), eur(tot[2]), eur(tot[3])]);
+  } else {
+    const rows = D.assets.filter((a) => a.disposal).sort((a, b) => b.disposal.retired.localeCompare(a.disposal.retired)).map((a) => [`<button class="link mono" data-asset="${a.id}">${a.tag}</button>`,
+      esc(modelName(a)), pill(a.status), d(a.disposal.retired), esc(a.disposal.reason), d(a.disposal.disposed), esc(a.disposal.method ?? "—"), esc(a.disposal.wipe ?? "—"),
+      a.disposal.disposed ? (a.disposal.wipeConfirmed ? "Yes" : "No") : "—", a.disposal.sale == null ? "—" : eur(a.disposal.sale)]);
+    title = "Disposal register"; desc = "Retired and disposed assets with method, data-wipe method and confirmation.";
+    out = table(["Asset tag", "Model", "Status", "Retired", "Reason", "Disposed", "Method", "Data wipe", "Wipe confirmed", "Sale value"], rows, null, 9);
+  }
+  return `<div class="head"><div><h1>Reports</h1><div class="sub">In the Flask app every report also exports to CSV and prints to PDF.</div></div></div>
+  <section class="panel"><div class="tabs" role="tablist">${REPORTS.map(([k, l]) => `<button role="tab" data-report="${k}" aria-selected="${S.report === k}">${l}</button>`).join("")}</div>
+  <div class="body"><h2>${title}</h2><p class="muted" style="margin:4px 0 12px">${desc}</p>${controls ? `<div class="filters" style="padding:0 0 12px">${controls}</div>` : ""}${out}</div></section>`;
+}
+
+// ---- audit -----------------------------------------------------------------------------
+function auditLog() {
+  const f = S.auf, q = f.q.trim().toLowerCase();
+  const actions = [...new Set(D.audit.map((e) => e.action))].sort();
+  const rows = D.audit.filter((e) => (!f.action || e.action === f.action) && (!q || (e.label || "").toLowerCase().includes(q) || (e.note || "").toLowerCase().includes(q)));
+  const size = 50, page = Math.min(f.page, Math.max(Math.ceil(rows.length / size), 1));
+  return `<div class="head"><div><h1>Audit log</h1><div class="sub">Append-only. Shown in Europe/Berlin time; stored in UTC.</div></div></div>
+  <section class="panel"><div class="filters"><div class="field" style="flex:1 1 220px"><label for="au-q">Record or note</label><input id="au-q" data-auf="q" value="${esc(f.q)}" placeholder="e.g. IT-000042 or a name"></div>
+    <div class="field"><label for="au-a">Action</label><select id="au-a" data-auf="action">${opt("", "All", f.action)}${actions.map((a) => opt(a, a.replace("_", " "), f.action)).join("")}</select></div></div>
+  <div class="table-wrap"><table><thead><tr><th>When</th><th>User</th><th>Record</th><th>Action</th><th>Changes</th></tr></thead><tbody>
+  ${rows.slice((page - 1) * size, page * size).map((e) => `<tr><td class="num" style="text-align:left">${dt(e.at)}</td><td>${esc(e.user ?? "Employee via link")}</td>
+    <td>${e.assetId ? `<button class="link mono" data-asset="${e.assetId}" data-tab="history">${esc(e.label)}</button>` : esc(e.label)}</td>
+    <td><span class="mono">${esc(e.action.replace("_", " "))}</span>${e.note ? `<div class="muted" style="font-size:12px">${esc(e.note)}</div>` : ""}</td>
+    <td class="diff">${e.changes ? Object.entries(e.changes).map(([k, [o, n]]) => `${esc(k)}: <del>${esc(o ?? "∅")}</del> → <ins>${esc(n ?? "∅")}</ins>`).join("<br>") : ""}</td></tr>`).join("")}
+  </tbody></table></div>${pager(rows.length, page, size, "auf")}</section>`;
+}
+
+// ---- dialogs for lifecycle actions ----------------------------------------------------
+const dlg = document.getElementById("dlg");
+const sel = (id, label, options) => `<div class="field"><label for="${id}">${label}</label><select id="${id}">${options.map((o) => `<option>${o}</option>`).join("")}</select></div>`;
+function dialog(a, act) {
+  const x = openAssignment(a.id);
+  const forms = {
+    checkout: ["Check out " + a.tag, "Check out & email employee", `<div class="field"><label for="d-emp">Employee</label><select id="d-emp" size="7">${D.employees.filter((e) => e.status === "ACTIVE")
+      .sort((p, q) => p.name.localeCompare(q.name, "de")).map((e) => `<option value="${e.id}">${esc(e.name)} · ${e.code} · ${esc(locs[e.locationId]?.name)}</option>`).join("")}</select></div>
+      <div class="field"><label for="d-exp">Expected return (loans only)</label><input type="date" id="d-exp"></div>${sel("d-cond", "Condition", ["Good", "New", "Fair"])}
+      <p class="note">The employee gets a single-use acknowledgement link, valid for 7 days.</p>`],
+    checkin: ["Check in " + a.tag, "Check in", `<p>Returning from <b>${x ? esc(emps[x.employeeId].name) : ""}</b>.</p>${sel("d-cond", "Condition on return", ["Good", "New", "Fair", "Damaged"])}<p class="note">“Damaged” sends the asset to In Repair.</p>`],
+    repair: ["Open repair for " + a.tag, "Open repair", `<div class="field"><label for="d-issue">Issue</label><textarea id="d-issue" rows="2"></textarea></div>${sel("d-type", "Type", ["Warranty", "Paid", "Internal"])}`],
+    closeRepair: ["Close repair", "Close repair", `<p class="note">${esc(openRepair(a.id)?.issue ?? "")}</p>${sel("d-out", "Outcome", ["Fixed", "Replaced", "Beyond repair"])}
+      <div class="field"><label for="d-cost">Cost (€)</label><input id="d-cost" inputmode="decimal" placeholder="0,00"></div><div class="field"><label for="d-res">Resolution</label><input id="d-res"></div>`],
+    retire: ["Retire " + a.tag, "Retire asset", `${x ? `<div class="alert">Assigned to ${esc(emps[x.employeeId].name)}. It must be checked in first, so this will be rejected.</div>` : ""}${sel("d-reason", "Reason", ["End of life", "Damaged beyond repair", "Lost", "Stolen", "Other"])}`],
+    dispose: ["Dispose of " + a.tag, "Dispose", `${sel("d-method", "Method", ["Recycled", "Sold", "Donated", "Destroyed", "Returned to lessor"])}${sel("d-wipe", "Data-wipe method", ["NIST 800-88 purge", "Cryptographic erase", "Physical destruction", "Not applicable"])}
+      <div class="field"><label for="d-sale">Sale value (€)</label><input id="d-sale" inputmode="decimal"></div><label class="check"><input type="checkbox" id="d-ok"> I confirm the data wipe is complete</label>`],
+  };
+  const [title, submit, fields] = forms[act];
+  dlg.innerHTML = `<form method="dialog"><header><h2>${title}</h2></header><div class="fields">${fields}</div>
+    <footer><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">${submit}</button></footer></form>`;
+  dlg.querySelector("form").addEventListener("submit", (ev) => {
+    if (ev.submitter?.value !== "ok") return;
+    const v = (id) => dlg.querySelector("#" + id)?.value ?? "";
+    try {
+      const msg = { checkout: () => ops.checkout(a, Number(v("d-emp")), v("d-exp"), v("d-cond")), checkin: () => ops.checkin(a, v("d-cond")),
+        repair: () => ops.repair(a, v("d-issue"), v("d-type")), closeRepair: () => ops.closeRepair(a, v("d-out"), v("d-cost"), v("d-res")),
+        retire: () => ops.retire(a, v("d-reason")), dispose: () => ops.dispose(a, v("d-method"), v("d-wipe"), dlg.querySelector("#d-ok").checked, v("d-sale")) }[act]();
+      toast(msg); S.assetTab = act === "checkout" || act === "checkin" ? "assignments" : act.includes("epair") ? "repairs" : "history";
+    } catch (err) { ev.preventDefault(); toast(err.message, true); return; }
+    render();
+  });
+  dlg.showModal();
+}
+
+// ---- events --------------------------------------------------------------------------
+document.addEventListener("click", (ev) => {
+  const t = ev.target.closest("[data-view],[data-view-link],[data-asset],[data-employee],[data-sort],[data-page],[data-tab-sel],[data-act],[data-report],[data-filter-status]");
+  if (!t) return;
+  if (t.dataset.view || t.dataset.viewLink) { ev.preventDefault(); return go(t.dataset.view || t.dataset.viewLink); }
+  if (t.dataset.filterStatus) { S.af = { ...S.af, status: t.dataset.filterStatus, page: 1 }; return go("assets"); }
+  if (t.dataset.asset) return openAsset(Number(t.dataset.asset), t.dataset.tab || "details");
+  if (t.dataset.employee) return openEmployee(Number(t.dataset.employee));
+  if (t.dataset.sort) { S.af.dir = S.af.sort === t.dataset.sort ? -S.af.dir : 1; S.af.sort = t.dataset.sort; return render(); }
+  if (t.dataset.page) { const [ns, p] = t.dataset.page.split(":"); S[ns].page = Number(p); render(); return window.scrollTo?.(0, 0); }
+  if (t.dataset.tabSel) { S.assetTab = t.dataset.tabSel; return render(); }
+  if (t.dataset.report) { S.report = t.dataset.report; return go("reports", { report: t.dataset.report }); }
+  if (t.dataset.act) {
+    const a = assets[S.assetId];
+    if (t.dataset.act.startsWith("ack")) { toast(ops.ack(a, t.dataset.act === "ackAccept")); return render(); }
+    return dialog(a, t.dataset.act);
+  }
+});
+function refocus(id) { const el = document.getElementById(id); if (el) { el.focus(); if (el.setSelectionRange && el.type !== "date") el.setSelectionRange(el.value.length, el.value.length); } }
+document.addEventListener("input", (ev) => {
+  const t = ev.target, ns = ["af", "ef", "auf", "xf"].find((k) => t.dataset[k] !== undefined);
+  if (ns) { S[ns][t.dataset[ns]] = t.type === "checkbox" ? t.checked : t.value; if ("page" in S[ns]) S[ns].page = 1; render(); refocus(t.id); }
+  else if (t.id === "asat" || t.id === "rasat") { if (t.value) { S.asAt = t.value; render(); refocus(t.id); } }
+  else if (t.dataset.group !== undefined) { S.group = t.value; render(); }
+});
+
+let start = "dashboard";
+try { const h = location.hash.slice(1); if (VIEWS.some(([k]) => k === h)) start = h; } catch (e) { /* no hash access */ }
+go(start);
+</script>

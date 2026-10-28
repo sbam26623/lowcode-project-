@@ -1,0 +1,27 @@
+{% extends "ack/layout.html" %}
+{% block body %}
+<h1 class="h4">Please confirm receipt of your equipment</h1>
+<p>Hello {{ employee.full_name }}, the IT team has assigned the following item to you on {{ assignment.checked_out_at|d }}.</p>
+<table class="table table-bordered">
+  <thead class="table-light"><tr><th>Asset tag</th><th>Item</th><th>Serial number</th><th>Condition</th></tr></thead>
+  <tr><td>{{ assignment.asset.asset_tag }}</td><td>{{ assignment.asset.model.display_name }}</td>
+    <td class="font-monospace">{{ assignment.asset.serial_number }}</td><td>{{ assignment.checkout_condition }}</td></tr>
+</table>
+{% if assignment.expected_return_date %}<p>This is a loan. Please return it by <strong>{{ assignment.expected_return_date|d }}</strong>.</p>{% endif %}
+<h2 class="h6 mt-4">Acceptable use</h2>
+<ul class="small">{% for t in terms %}<li>{{ t }}</li>{% endfor %}</ul>
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<form method="post" class="mt-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label class="form-label" for="typed_name">Type your full name to accept</label>
+  <input class="form-control mb-3" id="typed_name" name="typed_name" autocomplete="name" placeholder="{{ employee.full_name }}">
+  <button class="btn btn-success" name="choice" value="accept"><i class="bi bi-check2 me-1"></i>Accept</button>
+  <button class="btn btn-link text-danger" type="button" data-bs-toggle="collapse" data-bs-target="#problem">Report a problem</button>
+  <div class="collapse mt-3" id="problem">
+    <label class="form-label" for="comment">What is wrong? (e.g. not received, wrong item)</label>
+    <textarea class="form-control mb-2" id="comment" name="comment" rows="2"></textarea>
+    <button class="btn btn-outline-danger" name="choice" value="dispute">Send to IT</button>
+  </div>
+</form>
+<p class="small text-secondary mt-4 mb-0">Link valid until {{ ack.expires_at|dt }}. Your name, the time, IP address and browser are recorded.</p>
+{% endblock %}

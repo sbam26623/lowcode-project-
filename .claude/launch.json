@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "it-asset-inventory",
+      "runtimeExecutable": "week03/IT-ASSEST-INVENTORY/.venv/Scripts/python.exe",
+      "runtimeArgs": ["week03/IT-ASSEST-INVENTORY/run.py"],
+      "port": 5000
+    },
+    {
+      "name": "prototype",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5001", "--bind", "127.0.0.1", "--directory", "week03/IT-ASSEST-INVENTORY/prototype"],
+      "port": 5001
+    }
+  ]
+}

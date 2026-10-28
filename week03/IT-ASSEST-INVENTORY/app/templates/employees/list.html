@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Employees{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Employees</h1>
+{% set a = request.args %}
+<form class="card card-body mb-3 filter-bar" method="get">
+  <div class="row g-2 align-items-end">
+    <div class="col-4"><label class="form-label small" for="q">Search</label>
+      <input class="form-control form-control-sm" id="q" name="q" value="{{ a.q }}" placeholder="Name, email or employee ID"></div>
+    <div class="col"><label class="form-label small" for="department">Department</label>
+      <select class="form-select form-select-sm" id="department" name="department"><option value="">All</option>
+        {% for d in departments %}<option value="{{ d.id }}" {{ 'selected' if a.department == d.id|string }}>{{ d.name }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label small" for="location">Location</label>
+      <select class="form-select form-select-sm" id="location" name="location"><option value="">All</option>
+        {% for l in locations %}<option value="{{ l.id }}" {{ 'selected' if a.location == l.id|string }}>{{ l.name }}</option>{% endfor %}</select></div>
+    <div class="col"><label class="form-label small" for="status">Status</label>
+      <select class="form-select form-select-sm" id="status" name="status"><option value="">All</option>
+        <option value="ACTIVE" {{ 'selected' if a.status == 'ACTIVE' }}>Active</option>
+        <option value="LEAVER" {{ 'selected' if a.status == 'LEAVER' }}>Leaver</option></select></div>
+    <div class="col-auto"><button class="btn btn-sm btn-secondary">Apply</button>
+      <a class="btn btn-sm btn-link" href="{{ url_for('employees.index') }}">Reset</a></div>
+  </div>
+</form>
+<div class="card">
+  <table class="table table-sm table-hover mb-0">
+    <thead class="table-light"><tr><th>Name</th><th>Employee ID</th><th>Email</th><th>Department</th><th>Location</th><th>Status</th><th class="num">Assets held</th></tr></thead>
+    <tbody>
+      {% for e, n in page.items %}
+      <tr>
+        <td><a class="fw-semibold" href="{{ url_for('employees.detail', employee_id=e.id) }}">{{ e.full_name }}</a></td>
+        <td class="font-monospace small">{{ e.employee_code }}</td>
+        <td class="small">{{ e.email }}</td>
+        <td>{{ e.department.name if e.department else '—' }}</td>
+        <td>{{ e.location.name if e.location else '—' }}</td>
+        <td>{% if e.is_leaver %}<span class="badge text-bg-secondary">Leaver {{ e.leaving_date|d }}</span>{% else %}<span class="badge text-bg-success">Active</span>{% endif %}</td>
+        <td class="num {{ 'text-danger fw-semibold' if e.is_leaver and n }}">{{ n }}</td>
+      </tr>
+      {% else %}<tr><td colspan="7" class="text-center text-secondary py-4">No employees match.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ m.pagination(page) }}
+{% endblock %}

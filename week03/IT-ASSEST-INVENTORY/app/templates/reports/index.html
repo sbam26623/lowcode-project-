@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Reports</h1>
+<div class="row g-3">
+  {% for slug, code, title, desc in catalogue %}
+  <div class="col-4">
+    <a class="card h-100 text-decoration-none" href="{{ url_for('reports.show', slug=slug) }}">
+      <div class="card-body">
+        <div class="small text-secondary">{{ code }}</div>
+        <div class="fw-semibold text-body">{{ title }}</div>
+        <div class="small text-secondary mt-1">{{ desc }}</div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+<p class="small text-secondary mt-3">RPT-06 (repairs & maintenance) and RPT-07 (acknowledgement status) are Should-priority; acknowledgement status is covered by the Assignments page for now.</p>
+{% endblock %}
